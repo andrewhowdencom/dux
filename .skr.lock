@@ -1,2 +1,11 @@
 skills:
-    ghcr.io/andrewhowdencom/skills.go:latest: sha256:0f5dabeb0149f36a74a92875670174cc9c2b3e35791b3cfc992d1059c53609ec
+    file://../skills/skills/architecture: sha256:8d3b37d1496ae57a5835bdf7b2c303f8b83a4e3d825da5b4dec044a06da7e911
+    file://../skills/skills/cli: sha256:83153ca1510df15e1cbb073c9608a46629033e2602027567ecc0c62ea454d0d5
+    file://../skills/skills/configuration: sha256:609018e6c1a726274146b42ee0d1b3b4798020e11b15a7d773f8debfd1c001ed
+    file://../skills/skills/dependency_injection: sha256:65750efa70f7f3e0e91d5faf14caa6e69d0d1e5b7a2f4e06eac7051474232774
+    file://../skills/skills/documentation: sha256:85161fc659b84f6b0d0564577a6b687593a7d2585357a11f9b768c45d3a7cbce
+    file://../skills/skills/git: sha256:1f968998a753876e7ad9c8039f5b2c932ae34b7cd75f71715d620f4f40b256c4
+    file://../skills/skills/go: sha256:566f0892fb1b6854ffe96cfdc49732714b869b0a8d847cbdcab7121a4fb05cbf
+    file://../skills/skills/instrumentation: sha256:e2d9c1283f5ad7df238af04d4f0f4582274f4bbc87e17560b2e8f5929596aba3
+    file://../skills/skills/rpc: sha256:89b1247cdead5f20cf5fb781958d28fe3098bb841be9eef3163359f55b578294
+    file://../skills/skills/taskfile: sha256:fbd2148acd3506cebe424436bdacb5614c85f47542c03e360f40175136ad8da6
