@@ -1,0 +1,5 @@
+agents:
+    - antigravity
+skills:
+    - ghcr.io/andrewhowdencom/skills.go:latest
+    - ghcr.io/andrewhowdencom/skills.go:217988a
