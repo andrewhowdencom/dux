@@ -1,0 +1,35 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: Installs required tools and dependencies.
+    cmds:
+      - go mod download
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+  generate:
+    desc: Generates code as required (e.g., from Protocol Buffers, mocks).
+    cmds:
+      - go generate ./...
+
+  build:
+    desc: Compiles the application binary.
+    cmds:
+      - go build -o dux main.go
+
+  lint:
+    desc: Runs code linters.
+    cmds:
+      - golangci-lint run
+
+  test:
+    desc: Runs unit tests.
+    cmds:
+      - go test -race ./...
+
+  validate:
+    desc: Runs lints, unit tests, smoke tests, and the build. Run this before committing.
+    cmds:
+      - task: lint
+      - task: test
+      - task: build
