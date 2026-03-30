@@ -1,0 +1,134 @@
+package ollama
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+
+	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
+	"github.com/mitchellh/mapstructure"
+	api "github.com/ollama/ollama/api"
+)
+
+type Config struct {
+	Address string `mapstructure:"address"`
+	Model   string `mapstructure:"model"`
+}
+
+type Provider struct {
+	client *api.Client
+	model  string
+}
+
+func New(rawConfig map[string]interface{}) (provider.Provider, error) {
+	var cfg Config
+	if err := mapstructure.Decode(rawConfig, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to decode ollama config: %w", err)
+	}
+
+	address := cfg.Address
+	if address == "" {
+		address = "http://localhost:11434"
+	}
+	u, err := url.Parse(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address for ollama: %w", err)
+	}
+
+	model := cfg.Model
+	if model == "" {
+		model = "llama3"
+	}
+
+	client := api.NewClient(u, http.DefaultClient)
+	return &Provider{
+		client: client,
+		model:  model,
+	}, nil
+}
+
+func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
+	out := make(chan llm.Part)
+
+	var reqMessages []api.Message
+	var reqTools api.Tools
+
+	for _, m := range messages {
+		var textContent string
+		var toolCalls []api.ToolCall
+
+		for _, p := range m.Parts {
+			switch part := p.(type) {
+			case llm.TextPart:
+				textContent += string(part)
+			case llm.ToolRequestPart:
+				args := api.NewToolCallFunctionArguments()
+				for k, v := range part.Args {
+					args.Set(k, v)
+				}
+
+				toolCalls = append(toolCalls, api.ToolCall{
+					Function: api.ToolCallFunction{
+						Name:      part.Name,
+						Arguments: args,
+					},
+				})
+			case llm.ToolDefinitionPart:
+				var params api.ToolFunctionParameters
+				if len(part.Parameters) > 0 {
+					_ = json.Unmarshal(part.Parameters, &params)
+				}
+				reqTools = append(reqTools, api.Tool{
+					Type: "function",
+					Function: api.ToolFunction{
+						Name:        part.Name,
+						Description: part.Description,
+						Parameters:  params,
+					},
+				})
+			}
+		}
+
+		if textContent != "" || len(toolCalls) > 0 {
+			reqMessages = append(reqMessages, api.Message{
+				Role:      m.Identity.Role,
+				Content:   textContent,
+				ToolCalls: toolCalls,
+			})
+		}
+	}
+
+	go func() {
+		defer close(out)
+
+		t := true
+		req := &api.ChatRequest{
+			Model:    o.model,
+			Messages: reqMessages,
+			Tools:    reqTools,
+			Stream:   &t,
+		}
+
+		err := o.client.Chat(ctx, req, func(resp api.ChatResponse) error {
+			if resp.Message.Content != "" {
+				out <- llm.TextPart(resp.Message.Content)
+			}
+			for _, tc := range resp.Message.ToolCalls {
+				out <- llm.ToolRequestPart{
+					Name: tc.Function.Name,
+					Args: tc.Function.Arguments.ToMap(),
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			out <- llm.TextPart(fmt.Sprintf("\n[Ollama Provider Error: %v]", err))
+		}
+	}()
+
+	return out, nil
+}
