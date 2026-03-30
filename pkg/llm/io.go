@@ -9,8 +9,9 @@ import (
 type PartType string
 
 const (
-	TypeText     PartType = "text"
-	TypeToolCall PartType = "tool_call"
+	TypeText           PartType = "text"
+	TypeToolCall       PartType = "tool_call"
+	TypeToolDefinition PartType = "tool_definition"
 )
 
 // Part defines an abstract section of an LLM generation.
@@ -50,6 +51,16 @@ func (t ToolRequestPart) MarshalJSON() ([]byte, error) {
 		Args: t.Args,
 	})
 }
+
+// ToolDefinitionPart implements Part, allowing tool schemas to be passed dynamically
+// inside the Message structure as structural "specialized context".
+type ToolDefinitionPart struct {
+	Name        string
+	Description string
+	Parameters  json.RawMessage // e.g. JSON Schema
+}
+
+func (t ToolDefinitionPart) Type() PartType { return TypeToolDefinition }
 
 // Identity represents the exact source and nature of a message.
 type Identity struct {
