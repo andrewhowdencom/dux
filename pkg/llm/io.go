@@ -1,0 +1,78 @@
+package llm
+
+import (
+	"context"
+	"encoding/json"
+)
+
+// PartType identifies the structural intent of a Message Part.
+type PartType string
+
+const (
+	TypeText     PartType = "text"
+	TypeToolCall PartType = "tool_call"
+)
+
+// Part defines an abstract section of an LLM generation.
+// The Type() method allows downstream adapters (like Slack) to branch UI logic 
+// based on the part's intent, decoupled from how the part physically marshals itself.
+type Part interface {
+	Type() PartType
+}
+
+// TextPart represents standard conversational text.
+type TextPart string
+
+func (t TextPart) Type() PartType { return TypeText }
+
+// MarshalText conforms strictly to the standard Go encoding interfaces.
+func (t TextPart) MarshalText() ([]byte, error) {
+	return []byte(t), nil
+}
+
+// ToolRequestPart carries arguments that evaluate downstream.
+type ToolRequestPart struct {
+	ToolID string
+	Name   string
+	Args   map[string]interface{}
+}
+
+func (t ToolRequestPart) Type() PartType { return TypeToolCall }
+
+// MarshalJSON conforms strictly to standard Go encoding libraries, offloading
+// the burden of formatting to standard types.
+func (t ToolRequestPart) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Tool string                 `json:"tool"`
+		Args map[string]interface{} `json:"args"`
+	}{
+		Tool: t.Name,
+		Args: t.Args,
+	})
+}
+
+// Identity represents the exact source and nature of a message.
+type Identity struct {
+	Role string // e.g., "user", "assistant", "system", "tool"
+	Name string // The name of the specific tool or agent interacting
+}
+
+// Message is the upgraded payload structure representing a completely isolated event.
+type Message struct {
+	ID         string
+	SessionID  string
+	Identity   Identity
+	Parts      []Part // Flexible payload list instead of a rigid string
+	Attributes map[string]string
+}
+
+// Receiver yields incoming messages over a channel. It acts as an asynchronous producer.
+// The provided context should control the lifetime of the receiver.
+type Receiver interface {
+	Receive(ctx context.Context) (<-chan Message, error)
+}
+
+// Sender writes output messages back to a transport layer.
+type Sender interface {
+	Send(ctx context.Context, msg Message) error
+}
