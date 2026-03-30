@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/andrewhowdencom/stdlib v0.0.0-00010101000000-000000000000
+	github.com/andrewhowdencom/stdlib v0.0.0-20260318094353-b5e9e0a3127a
 	github.com/google/wire v0.7.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
@@ -32,5 +32,3 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 )
-
-replace github.com/andrewhowdencom/stdlib => ../stdlib
