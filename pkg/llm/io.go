@@ -15,7 +15,7 @@ const (
 )
 
 // Part defines an abstract section of an LLM generation.
-// The Type() method allows downstream adapters (like Slack) to branch UI logic 
+// The Type() method allows downstream adapters (like Slack) to branch UI logic
 // based on the part's intent, decoupled from how the part physically marshals itself.
 type Part interface {
 	Type() PartType

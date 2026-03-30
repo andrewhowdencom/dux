@@ -1,0 +1,20 @@
+# config.example.yaml
+# Provide this configuration (e.g., standard XDG compliant locations like ~/.config/dux/config.yml) to configure core services.
+
+llm:
+  # The default provider to use if `--provider` flag is completely omitted.
+  # (If this is omitted, dux will attempt to use the first configured provider below)
+  default_provider: "ollama-local"
+
+  providers:
+    # A standard Ollama local deployment targeting the native daemon
+    - id: "ollama-local"
+      type: "ollama"
+      config:
+        address: "http://localhost:11434"
+        model: "gpt-oss:20b"
+
+    # A generic testing sandbox provider backing the core integration layer
+    - id: "static-fallback"
+      type: "static"
+      config: {}

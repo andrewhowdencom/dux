@@ -43,6 +43,7 @@ func StartREPL(ctx context.Context, engine llm.Engine, in io.Reader, out io.Writ
 			continue
 		}
 
+		var lastRole string
 		for outMsg := range streamCh {
 			var prefix, color string
 			switch outMsg.Identity.Role {
@@ -64,15 +65,37 @@ func StartREPL(ctx context.Context, engine llm.Engine, in io.Reader, out io.Writ
 			for _, part := range outMsg.Parts {
 				switch p := part.(type) {
 				case llm.TextPart:
-					_, _ = fmt.Fprintf(out, "%s%s%s %s\n", color, prefix, colorReset, string(p))
+					if lastRole != outMsg.Identity.Role {
+						if lastRole != "" {
+							_, _ = fmt.Fprintln(out)
+						}
+						_, _ = fmt.Fprintf(out, "%s%s%s ", color, prefix, colorReset)
+						lastRole = outMsg.Identity.Role
+					}
+					_, _ = fmt.Fprintf(out, "%s", string(p))
 				case llm.ToolRequestPart:
+					if lastRole != "" {
+						_, _ = fmt.Fprintln(out)
+					}
 					_, _ = fmt.Fprintf(out, "%s%s%s Requesting tool '%s' with args: %v\n", color, prefix, colorReset, p.Name, p.Args)
+					lastRole = "" // Reset to force a clean demarcated rendering if another chunk arrives
 				case llm.ToolDefinitionPart:
+					if lastRole != "" {
+						_, _ = fmt.Fprintln(out)
+					}
 					_, _ = fmt.Fprintf(out, "%s%s%s Provided tool definition: %s\n", color, prefix, colorReset, p.Name)
+					lastRole = ""
 				default:
+					if lastRole != "" {
+						_, _ = fmt.Fprintln(out)
+					}
 					_, _ = fmt.Fprintf(out, "%s%s%s [Unknown part type: %T]\n", color, prefix, colorReset, p)
+					lastRole = ""
 				}
 			}
+		}
+		if lastRole != "" {
+			_, _ = fmt.Fprintln(out)
 		}
 	}
 	return scanner.Err()

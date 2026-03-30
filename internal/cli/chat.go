@@ -7,10 +7,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/internal/config"
+	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider/factory"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
 	"github.com/spf13/cobra"
 )
+
+var providerID string
 
 var chatCmd = &cobra.Command{
 	Use:   "chat",
@@ -28,16 +32,21 @@ var chatCmd = &cobra.Command{
 			os.Exit(0)
 		}()
 
-		fmt.Println("Starting interactive chat. Press Ctrl+D or Ctrl+C to exit.")
+		selectedCfg, err := config.LoadLLMProvider(providerID)
+		if err != nil {
+			return err
+		}
 
-		// Initialize StaticEngine with canned response
-		staticEngine := llm.NewStaticEngine(llm.Message{
-			SessionID: "cli-session",
-			Identity:  llm.Identity{Role: "assistant"},
-			Parts:     []llm.Part{llm.TextPart("I am the static agent. I always return this canned response!")},
-		})
+		fmt.Printf("Starting interactive chat using provider: %s (%s). Press Ctrl+D/Ctrl+C to exit.\n", selectedCfg.ID, selectedCfg.Type)
 
-		_ = terminal.StartREPL(ctx, staticEngine, os.Stdin, os.Stdout)
+		prv, err := factory.New(selectedCfg)
+		if err != nil {
+			return fmt.Errorf("failed to initialize provider %q: %w", selectedCfg.ID, err)
+		}
+
+		engine := adapter.New(adapter.WithProvider(prv))
+
+		_ = terminal.StartREPL(ctx, engine, os.Stdin, os.Stdout)
 
 		fmt.Println("\nChat session ended.")
 		return nil
@@ -45,5 +54,6 @@ var chatCmd = &cobra.Command{
 }
 
 func init() {
+	chatCmd.Flags().StringVar(&providerID, "provider", "", "LLM provider ID from config to use (e.g. 'ollama', 'static')")
 	RootCmd.AddCommand(chatCmd)
 }

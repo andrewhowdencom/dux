@@ -46,14 +46,14 @@ func (m *mockEngine) Stream(ctx context.Context, inputMessage llm.Message) (<-ch
 	// Spin up routine to mock stream behavior
 	go func() {
 		defer close(outCh)
-        
-        // Ensure we handle Parts properly when extracting content for mock response
-        inText := "unknown"
-        if len(inputMessage.Parts) > 0 {
-            if tp, ok := inputMessage.Parts[0].(llm.TextPart); ok {
-                inText = string(tp)
-            }
-        }
+
+		// Ensure we handle Parts properly when extracting content for mock response
+		inText := "unknown"
+		if len(inputMessage.Parts) > 0 {
+			if tp, ok := inputMessage.Parts[0].(llm.TextPart); ok {
+				inText = string(tp)
+			}
+		}
 
 		select {
 		case <-time.After(m.processDelay):
@@ -66,8 +66,8 @@ func (m *mockEngine) Stream(ctx context.Context, inputMessage llm.Message) (<-ch
 				Parts: []llm.Part{llm.TextPart(fmt.Sprintf("Response to: %s", inText))},
 			}
 		case <-ctx.Done():
-            // If killed mid-flight, just exit cleanly
-			return 
+			// If killed mid-flight, just exit cleanly
+			return
 		}
 	}()
 
@@ -78,7 +78,7 @@ func TestSessionHandler_StrictQueuing_WithStreams(t *testing.T) {
 	inCh := make(chan llm.Message, 5)
 	receiver := &mockReceiver{ch: inCh}
 	sender := &mockSender{}
-	
+
 	// Engine with a slight delay to simulate inference time
 	engine := &mockEngine{processDelay: 50 * time.Millisecond}
 
@@ -120,7 +120,7 @@ func TestSessionHandler_ContextCancellation(t *testing.T) {
 	inCh := make(chan llm.Message, 5)
 	receiver := &mockReceiver{ch: inCh}
 	sender := &mockSender{}
-	
+
 	// Very slow engine to test cancellation
 	engine := &mockEngine{processDelay: 5 * time.Second}
 

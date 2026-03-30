@@ -144,7 +144,7 @@ func TestEngineConvergence(t *testing.T) {
 	if stored[1].Identity.Role != "tool" {
 		t.Errorf("second history message should be tool role")
 	}
-	
+
 	toolResultTxt, ok := stored[1].Parts[0].(llm.TextPart)
 	if !ok || string(toolResultTxt) != "\"22C in Tokyo\"" {
 		// Because it gets json marshaled
