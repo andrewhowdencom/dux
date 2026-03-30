@@ -5,6 +5,7 @@ import (
 
 	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/ollama"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider/openai"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
 )
 
@@ -15,6 +16,8 @@ func New(cfg provider.InstanceConfig) (provider.Provider, error) {
 		return static.New(cfg.Config)
 	case "ollama":
 		return ollama.New(cfg.Config)
+	case "openai", "litellm":
+		return openai.New(cfg.Config)
 	default:
 		return nil, fmt.Errorf("unknown or unsupported provider type: %q (id: %q)", cfg.Type, cfg.ID)
 	}
