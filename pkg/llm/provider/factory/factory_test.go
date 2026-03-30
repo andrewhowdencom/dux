@@ -28,6 +28,20 @@ func TestNew(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "openai provider",
+			cfg: provider.InstanceConfig{
+				Type: "openai",
+			},
+			wantErr: false,
+		},
+		{
+			name: "litellm provider",
+			cfg: provider.InstanceConfig{
+				Type: "litellm",
+			},
+			wantErr: false,
+		},
+		{
 			name: "unknown provider",
 			cfg: provider.InstanceConfig{
 				Type: "aws-bedrock",
