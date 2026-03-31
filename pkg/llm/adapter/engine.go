@@ -14,9 +14,10 @@ import (
 // Engine orchestrates the convergence loop between the LLM provider,
 // tools, and conversation history.
 type Engine struct {
-	history  history.History
-	provider provider.Provider
-	registry tool.Registry
+	history      history.History
+	provider     provider.Provider
+	registry     tool.Registry
+	systemPrompt string
 }
 
 // Option configures the Engine via the functional options pattern.
@@ -40,6 +41,13 @@ func WithProvider(p provider.Provider) Option {
 func WithRegistry(r tool.Registry) Option {
 	return func(e *Engine) {
 		e.registry = r
+	}
+}
+
+// WithSystemPrompt sets an overarching system prompt injected dynamically at stream time.
+func WithSystemPrompt(prompt string) Option {
+	return func(e *Engine) {
+		e.systemPrompt = prompt
 	}
 }
 
@@ -79,6 +87,15 @@ func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan l
 			} else {
 				// Fallback if no history is configured
 				msgs = []llm.Message{inputMessage}
+			}
+
+			if e.systemPrompt != "" {
+				systemMsg := llm.Message{
+					SessionID: inputMessage.SessionID,
+					Identity:  llm.Identity{Role: "system"},
+					Parts:     []llm.Part{llm.TextPart(e.systemPrompt)},
+				}
+				msgs = append([]llm.Message{systemMsg}, msgs...)
 			}
 
 			// 2. Inject tool definitions

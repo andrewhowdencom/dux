@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	logLevel string
-	cfgFile  string
+	logLevel   string
+	cfgFile    string
+	agentsFile string
 )
 
 // RootCmd is the root command for the CLI application.
@@ -33,6 +34,7 @@ func NewRootCommand() *cobra.Command {
 
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Modifies the log/slog behavior for the default logger")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/dux/config.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&agentsFile, "agents-file", "a", "", "agents spec file (default is $XDG_CONFIG_HOME/dux/agents.yaml)")
 
 	return rootCmd
 }
