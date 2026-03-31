@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
@@ -18,6 +19,7 @@ import (
 
 var providerID string
 var chatTheme string
+var agentName string
 
 var chatCmd = &cobra.Command{
 	Use:   "chat",
@@ -35,7 +37,32 @@ var chatCmd = &cobra.Command{
 			os.Exit(0)
 		}()
 
-		selectedCfg, err := config.LoadLLMProvider(providerID)
+		var finalProvider = providerID
+		var sysPrompt string
+
+		// Resolve agents file default if not specified explicitly
+		var agentsFilePath = agentsFile
+		if agentsFilePath == "" {
+			path, err := xdg.ConfigFile("dux/agents.yaml")
+			if err == nil {
+				agentsFilePath = path
+			}
+		}
+
+		if agentName != "" {
+			agents, err := config.LoadAgents(agentsFilePath)
+			if err != nil {
+				return fmt.Errorf("failed to load agents file: %w", err)
+			}
+			agt, err := config.GetAgent(agents, agentName)
+			if err != nil {
+				return err
+			}
+			finalProvider = agt.Provider
+			sysPrompt = agt.SystemPrompt
+		}
+
+		selectedCfg, err := config.LoadLLMProvider(finalProvider)
 		if err != nil {
 			return err
 		}
@@ -50,6 +77,7 @@ var chatCmd = &cobra.Command{
 		engine := adapter.New(
 			adapter.WithProvider(prv),
 			adapter.WithHistory(mem),
+			adapter.WithSystemPrompt(sysPrompt),
 		)
 
 		var modelName string
@@ -75,6 +103,8 @@ var chatCmd = &cobra.Command{
 
 func init() {
 	chatCmd.Flags().StringVar(&providerID, "provider", "", "LLM provider ID from config to use (e.g. 'ollama', 'static')")
+	chatCmd.Flags().StringVar(&agentName, "agent", "", "Agent spec name to use (mutually exclusive with --provider)")
+	chatCmd.MarkFlagsMutuallyExclusive("provider", "agent")
 	chatCmd.Flags().StringVar(&chatTheme, "theme", "dark", "Theme for chat rendering. Supported: ascii, dark, dracula, light, notty, pink, tokyo-night, or path/to/style.json")
 	_ = viper.BindPFlag("chat.theme", chatCmd.Flags().Lookup("theme"))
 	RootCmd.AddCommand(chatCmd)
