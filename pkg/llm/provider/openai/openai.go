@@ -204,3 +204,17 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 	return out, nil
 }
+
+// ListModels returns a list of available models from the OpenAI-compatible endpoint.
+func (p *Provider) ListModels(ctx context.Context) ([]string, error) {
+	resp, err := p.client.ListModels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list openai models: %w", err)
+	}
+
+	var models []string
+	for _, m := range resp.Models {
+		models = append(models, m.ID)
+	}
+	return models, nil
+}

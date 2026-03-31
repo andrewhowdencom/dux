@@ -132,3 +132,17 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 	return out, nil
 }
+
+// ListModels returns a list of available models from the Ollama instance.
+func (o *Provider) ListModels(ctx context.Context) ([]string, error) {
+	resp, err := o.client.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ollama models: %w", err)
+	}
+
+	var models []string
+	for _, m := range resp.Models {
+		models = append(models, m.Name)
+	}
+	return models, nil
+}

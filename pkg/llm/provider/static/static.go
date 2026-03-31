@@ -44,3 +44,8 @@ func (s *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 	return out, nil
 }
+
+// ListModels returns a static list of models for the Static provider.
+func (s *Provider) ListModels(ctx context.Context) ([]string, error) {
+	return []string{"static-model"}, nil
+}

@@ -71,6 +71,10 @@ func (m *MockProvider) GenerateStream(ctx context.Context, messages []llm.Messag
 	return out, nil
 }
 
+func (m *MockProvider) ListModels(ctx context.Context) ([]string, error) {
+	return []string{"mock-model"}, nil
+}
+
 func TestEngineConvergence(t *testing.T) {
 	// Test the recursive tool convergence loop
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
