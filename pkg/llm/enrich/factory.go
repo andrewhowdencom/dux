@@ -18,6 +18,8 @@ func NewFromConfig(cfgs []config.Enricher) ([]Enricher, error) {
 			results = append(results, &osEnricher{})
 		case "prompt":
 			results = append(results, &promptEnricher{text: c.Text})
+		case "guard_rail":
+			results = append(results, &guardRailEnricher{text: c.Text})
 		default:
 			// For unrecognized types, we could either error out, or just log/skip.
 			// Returning an error ensures configuration typos are caught.
