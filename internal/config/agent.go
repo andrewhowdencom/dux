@@ -7,11 +7,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Agent defines a distinct interactive role combining a provider and a prompt.
+// Enricher defines the configuration for a context enricher.
+type Enricher struct {
+	Type string `yaml:"type"`
+	Text string `yaml:"text,omitempty"`
+}
+
+// AgentContext defines dynamic and static context to configure an agent's memory before interaction.
+type AgentContext struct {
+	Enrichers []Enricher `yaml:"enrichers,omitempty"`
+	System    string     `yaml:"system,omitempty"`
+}
+
+// Agent defines a distinct interactive role combining a provider and dynamic context.
 type Agent struct {
-	Name         string `yaml:"name"`
-	Provider     string `yaml:"provider"`
-	SystemPrompt string `yaml:"system_prompt"`
+	Name     string        `yaml:"name"`
+	Provider string        `yaml:"provider"`
+	Context  *AgentContext `yaml:"context,omitempty"`
 }
 
 // LoadAgents maps an agent specification list at a given filepath to an array of Agent objects.

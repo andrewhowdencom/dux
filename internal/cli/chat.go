@@ -10,6 +10,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
+	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/factory"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
@@ -39,6 +40,7 @@ var chatCmd = &cobra.Command{
 
 		var finalProvider = providerID
 		var sysPrompt string
+		var enrichers []enrich.Enricher
 
 		// Resolve agents file default if not specified explicitly
 		var agentsFilePath = agentsFile
@@ -59,7 +61,14 @@ var chatCmd = &cobra.Command{
 				return err
 			}
 			finalProvider = agt.Provider
-			sysPrompt = agt.SystemPrompt
+			if agt.Context != nil {
+				sysPrompt = agt.Context.System
+				en, err := enrich.NewFromConfig(agt.Context.Enrichers)
+				if err != nil {
+					return fmt.Errorf("failed to initialize enrichers for agent %q: %w", agentName, err)
+				}
+				enrichers = en
+			}
 		}
 
 		selectedCfg, err := config.LoadLLMProvider(finalProvider)
@@ -78,6 +87,7 @@ var chatCmd = &cobra.Command{
 			adapter.WithProvider(prv),
 			adapter.WithHistory(mem),
 			adapter.WithSystemPrompt(sysPrompt),
+			adapter.WithEnrichers(enrichers),
 		)
 
 		var modelName string

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool"
@@ -18,6 +20,7 @@ type Engine struct {
 	provider     provider.Provider
 	registry     tool.Registry
 	systemPrompt string
+	enrichers    []enrich.Enricher
 }
 
 // Option configures the Engine via the functional options pattern.
@@ -48,6 +51,13 @@ func WithRegistry(r tool.Registry) Option {
 func WithSystemPrompt(prompt string) Option {
 	return func(e *Engine) {
 		e.systemPrompt = prompt
+	}
+}
+
+// WithEnrichers sets the dynamic context enrichers to be evaluated before streaming.
+func WithEnrichers(enrichers []enrich.Enricher) Option {
+	return func(e *Engine) {
+		e.enrichers = enrichers
 	}
 }
 
@@ -96,6 +106,36 @@ func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan l
 					Parts:     []llm.Part{llm.TextPart(e.systemPrompt)},
 				}
 				msgs = append([]llm.Message{systemMsg}, msgs...)
+			}
+
+			// 1a. Evaluate dynamic enrichers if configured
+			if len(e.enrichers) > 0 {
+				var enrichmentData string
+				for _, en := range e.enrichers {
+					res, err := en.Enrich(ctx)
+					if err != nil {
+						slog.Debug("failed to evaluate enricher", "type", en.Type(), "error", err)
+						continue
+					}
+					if res != "" {
+						enrichmentData += res + "\n"
+					}
+				}
+				if enrichmentData != "" {
+					enrichMsg := llm.Message{
+						SessionID: inputMessage.SessionID,
+						Identity:  llm.Identity{Role: "system"},
+						Parts:     []llm.Part{llm.TextPart(enrichmentData)},
+					}
+					
+					lastIdx := len(msgs) - 1
+					if lastIdx >= 0 {
+						// Insert immediately before the last user message
+						msgs = append(msgs[:lastIdx], append([]llm.Message{enrichMsg}, msgs[lastIdx:]...)...)
+					} else {
+						msgs = append(msgs, enrichMsg)
+					}
+				}
 			}
 
 			// 2. Inject tool definitions
