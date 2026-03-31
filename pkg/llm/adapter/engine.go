@@ -115,6 +115,12 @@ func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan l
 						Identity:  llm.Identity{Role: "assistant"},
 						Parts:     []llm.Part{p},
 					}
+					if e.history != nil {
+						if err := e.history.Append(ctx, msg.SessionID, msg); err != nil {
+							e.sendError(ctx, out, err, msg.SessionID)
+							return
+						}
+					}
 					e.safeSend(ctx, out, msg)
 
 				case llm.ToolRequestPart:
@@ -123,6 +129,12 @@ func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan l
 						SessionID: inputMessage.SessionID,
 						Identity:  llm.Identity{Role: "assistant"},
 						Parts:     []llm.Part{p},
+					}
+					if e.history != nil {
+						if err := e.history.Append(ctx, msg.SessionID, msg); err != nil {
+							e.sendError(ctx, out, err, msg.SessionID)
+							return
+						}
 					}
 					e.safeSend(ctx, out, msg)
 				}

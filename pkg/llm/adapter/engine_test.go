@@ -138,18 +138,24 @@ func TestEngineConvergence(t *testing.T) {
 
 	// Verify history stored the sequence of events
 	stored, _ := hist.GetMessages(ctx, "session-1")
-	// Expected: User Input -> Tool Result
-	if len(stored) != 2 {
-		t.Errorf("expected 2 messages in history, got %d", len(stored))
+	// Expected: User Input -> Assistant Tool Request -> Tool Result -> Assistant Final Answer
+	if len(stored) != 4 {
+		t.Errorf("expected 4 messages in history, got %d", len(stored))
 	}
 	if stored[0].Identity.Role != "user" {
 		t.Errorf("first history message should be user")
 	}
-	if stored[1].Identity.Role != "tool" {
-		t.Errorf("second history message should be tool role")
+	if stored[1].Identity.Role != "assistant" {
+		t.Errorf("second history message should be assistant tool request")
+	}
+	if stored[2].Identity.Role != "tool" {
+		t.Errorf("third history message should be tool role")
+	}
+	if stored[3].Identity.Role != "assistant" {
+		t.Errorf("fourth history message should be assistant text")
 	}
 
-	toolResultTxt, ok := stored[1].Parts[0].(llm.TextPart)
+	toolResultTxt, ok := stored[2].Parts[0].(llm.TextPart)
 	if !ok || string(toolResultTxt) != "\"22C in Tokyo\"" {
 		// Because it gets json marshaled
 		if string(toolResultTxt) != "22C in Tokyo" {
