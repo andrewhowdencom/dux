@@ -109,7 +109,7 @@ func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan l
 			// 4. Over the stream
 			for part := range partStream {
 				switch p := part.(type) {
-				case llm.TextPart:
+				case llm.TextPart, llm.ReasoningPart:
 					msg := llm.Message{
 						SessionID: inputMessage.SessionID,
 						Identity:  llm.Identity{Role: "assistant"},

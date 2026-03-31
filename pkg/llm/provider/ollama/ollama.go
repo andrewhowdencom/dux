@@ -58,12 +58,15 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 	for _, m := range messages {
 		var textContent string
+		var thinkingContent string
 		var toolCalls []api.ToolCall
 
 		for _, p := range m.Parts {
 			switch part := p.(type) {
 			case llm.TextPart:
 				textContent += string(part)
+			case llm.ReasoningPart:
+				thinkingContent += string(part)
 			case llm.ToolRequestPart:
 				args := api.NewToolCallFunctionArguments()
 				for k, v := range part.Args {
@@ -92,10 +95,11 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			}
 		}
 
-		if textContent != "" || len(toolCalls) > 0 {
+		if textContent != "" || thinkingContent != "" || len(toolCalls) > 0 {
 			reqMessages = append(reqMessages, api.Message{
 				Role:      m.Identity.Role,
 				Content:   textContent,
+				Thinking:  thinkingContent,
 				ToolCalls: toolCalls,
 			})
 		}
@@ -116,6 +120,9 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			if resp.Message.Content != "" {
 				out <- llm.TextPart(resp.Message.Content)
 			}
+			if resp.Message.Thinking != "" {
+				out <- llm.ReasoningPart(resp.Message.Thinking)
+			}
 			for _, tc := range resp.Message.ToolCalls {
 				out <- llm.ToolRequestPart{
 					Name: tc.Function.Name,
@@ -131,4 +138,18 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 	}()
 
 	return out, nil
+}
+
+// ListModels returns a list of available models from the Ollama instance.
+func (o *Provider) ListModels(ctx context.Context) ([]string, error) {
+	resp, err := o.client.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ollama models: %w", err)
+	}
+
+	var models []string
+	for _, m := range resp.Models {
+		models = append(models, m.Name)
+	}
+	return models, nil
 }
