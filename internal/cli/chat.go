@@ -9,6 +9,7 @@ import (
 
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
+	"github.com/andrewhowdencom/dux/pkg/llm/history"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/factory"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -44,7 +45,12 @@ var chatCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize provider %q: %w", selectedCfg.ID, err)
 		}
 
-		engine := adapter.New(adapter.WithProvider(prv))
+		mem := history.NewInMemory()
+
+		engine := adapter.New(
+			adapter.WithProvider(prv),
+			adapter.WithHistory(mem),
+		)
 
 		var modelName string
 		if m, ok := selectedCfg.Config["model"].(string); ok {
@@ -70,6 +76,6 @@ var chatCmd = &cobra.Command{
 func init() {
 	chatCmd.Flags().StringVar(&providerID, "provider", "", "LLM provider ID from config to use (e.g. 'ollama', 'static')")
 	chatCmd.Flags().StringVar(&chatTheme, "theme", "dark", "Theme for chat rendering. Supported: ascii, dark, dracula, light, notty, pink, tokyo-night, or path/to/style.json")
-	viper.BindPFlag("chat.theme", chatCmd.Flags().Lookup("theme"))
+	_ = viper.BindPFlag("chat.theme", chatCmd.Flags().Lookup("theme"))
 	RootCmd.AddCommand(chatCmd)
 }

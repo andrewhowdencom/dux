@@ -242,7 +242,11 @@ func (m *uiModel) updateViewport() {
 		case "assistant":
 			roleTitle = assistantStyle.Render(fmt.Sprintf("Dux (%s)", m.modelName))
 		default:
-			roleTitle = toolStyle.Render(strings.Title(msg.role))
+			title := msg.role
+			if len(title) > 0 {
+				title = strings.ToUpper(title[:1]) + strings.ToLower(title[1:])
+			}
+			roleTitle = toolStyle.Render(title)
 		}
 
 		if msg.name != "" {
