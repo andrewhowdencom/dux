@@ -6,7 +6,6 @@ theme:
   name: material
   icon:
     logo: material/bird
-  custom_dir: docs/overrides
   palette:
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
