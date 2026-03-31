@@ -32,6 +32,7 @@ nav:
     - "Integrating LiteLLM": tutorials/litellm.md
   - How-To Guides:
     - "Running Locally": how-to/running-locally.md
+    - "Configuring Agents": how-to/configuring-agents.md
   - Reference:
     - "CLI Commands": reference/cli.md
   - Explanation:
