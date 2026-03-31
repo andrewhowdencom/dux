@@ -10,6 +10,7 @@ type PartType string
 
 const (
 	TypeText           PartType = "text"
+	TypeReasoning      PartType = "reasoning"
 	TypeToolCall       PartType = "tool_call"
 	TypeToolDefinition PartType = "tool_definition"
 )
@@ -29,6 +30,16 @@ func (t TextPart) Type() PartType { return TypeText }
 // MarshalText conforms strictly to the standard Go encoding interfaces.
 func (t TextPart) MarshalText() ([]byte, error) {
 	return []byte(t), nil
+}
+
+// ReasoningPart represents chain-of-thought or provider-supplied reasoning.
+type ReasoningPart string
+
+func (r ReasoningPart) Type() PartType { return TypeReasoning }
+
+// MarshalText conforms strictly to the standard Go encoding interfaces.
+func (r ReasoningPart) MarshalText() ([]byte, error) {
+	return []byte(r), nil
 }
 
 // ToolRequestPart carries arguments that evaluate downstream.

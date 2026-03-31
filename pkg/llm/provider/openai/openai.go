@@ -62,6 +62,7 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 	for _, m := range messages {
 		var textContent string
+		var thinkingContent string
 		var toolCalls []openai.ToolCall
 
 		// Translate dux roles to openai roles
@@ -80,6 +81,8 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			switch part := p.(type) {
 			case llm.TextPart:
 				textContent += string(part)
+			case llm.ReasoningPart:
+				thinkingContent += string(part)
 			case llm.ToolRequestPart:
 				argsJSON, _ := json.Marshal(part.Args)
 				toolCalls = append(toolCalls, openai.ToolCall{
@@ -112,11 +115,12 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			}
 		}
 
-		if textContent != "" || len(toolCalls) > 0 {
+		if textContent != "" || thinkingContent != "" || len(toolCalls) > 0 {
 			msg := openai.ChatCompletionMessage{
-				Role:      role,
-				Content:   textContent,
-				ToolCalls: toolCalls,
+				Role:             role,
+				Content:          textContent,
+				ReasoningContent: thinkingContent,
+				ToolCalls:        toolCalls,
 			}
 			reqMessages = append(reqMessages, msg)
 		}
@@ -180,6 +184,9 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 				if choice.Delta.Content != "" {
 					out <- llm.TextPart(choice.Delta.Content)
+				}
+				if choice.Delta.ReasoningContent != "" {
+					out <- llm.ReasoningPart(choice.Delta.ReasoningContent)
 				}
 
 				for _, tc := range choice.Delta.ToolCalls {

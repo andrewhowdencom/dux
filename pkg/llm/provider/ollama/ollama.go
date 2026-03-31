@@ -58,12 +58,15 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 	for _, m := range messages {
 		var textContent string
+		var thinkingContent string
 		var toolCalls []api.ToolCall
 
 		for _, p := range m.Parts {
 			switch part := p.(type) {
 			case llm.TextPart:
 				textContent += string(part)
+			case llm.ReasoningPart:
+				thinkingContent += string(part)
 			case llm.ToolRequestPart:
 				args := api.NewToolCallFunctionArguments()
 				for k, v := range part.Args {
@@ -92,10 +95,11 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			}
 		}
 
-		if textContent != "" || len(toolCalls) > 0 {
+		if textContent != "" || thinkingContent != "" || len(toolCalls) > 0 {
 			reqMessages = append(reqMessages, api.Message{
 				Role:      m.Identity.Role,
 				Content:   textContent,
+				Thinking:  thinkingContent,
 				ToolCalls: toolCalls,
 			})
 		}
@@ -115,6 +119,9 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 		err := o.client.Chat(ctx, req, func(resp api.ChatResponse) error {
 			if resp.Message.Content != "" {
 				out <- llm.TextPart(resp.Message.Content)
+			}
+			if resp.Message.Thinking != "" {
+				out <- llm.ReasoningPart(resp.Message.Thinking)
 			}
 			for _, tc := range resp.Message.ToolCalls {
 				out <- llm.ToolRequestPart{
