@@ -33,3 +33,13 @@ tasks:
       - task: lint
       - task: test
       - task: build
+
+  docs-serve:
+    desc: Serves the MkDocs site locally
+    cmds:
+      - mkdocs serve
+
+  docs-build:
+    desc: Builds the MkDocs site
+    cmds:
+      - mkdocs build
