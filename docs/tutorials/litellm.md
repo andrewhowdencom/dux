@@ -44,7 +44,7 @@ llm:
     - id: "litellm-proxy"
       type: "openai"
       config:
-        address: "http://0.0.0.0:4000/v1"
+        base_url: "http://0.0.0.0:4000/v1"
         model: "anthropic/claude-3-opus-20240229"
         api_key: "any" # LiteLLM proxy doesn't require a real OpenAI key by default
 ```
