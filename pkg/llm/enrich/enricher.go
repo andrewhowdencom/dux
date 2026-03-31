@@ -40,3 +40,13 @@ func (e *promptEnricher) Type() string { return "prompt" }
 func (e *promptEnricher) Enrich(ctx context.Context) (string, error) {
 	return fmt.Sprintf("<enrichment type=\"prompt\">\n%s\n</enrichment>", e.text), nil
 }
+
+// guardRailEnricher provides statically configured guard rail instructions.
+type guardRailEnricher struct {
+	text string
+}
+
+func (e *guardRailEnricher) Type() string { return "guard_rail" }
+func (e *guardRailEnricher) Enrich(ctx context.Context) (string, error) {
+	return fmt.Sprintf("<enrichment type=\"guard_rail\">\n%s\n</enrichment>", e.text), nil
+}
