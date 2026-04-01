@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"net/url"
+	"time"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider"
@@ -66,12 +67,16 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			Model:    p.model,
 			Messages: reqMessages,
 			Stream:   true,
+			StreamOptions: &openai.StreamOptions{
+				IncludeUsage: true,
+			},
 		}
 
 		if len(reqTools) > 0 {
 			req.Tools = reqTools
 		}
 
+		startTime := time.Now()
 		stream, err := p.client.CreateChatCompletionStream(ctx, req)
 		if err != nil {
 			var apiErr *openai.APIError
@@ -143,6 +148,19 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 							b.Arguments += tc.Function.Arguments
 						}
 					}
+				}
+			}
+
+			if response.Usage != nil {
+				reasoningTokens := 0
+				if response.Usage.CompletionTokensDetails != nil {
+					reasoningTokens = response.Usage.CompletionTokensDetails.ReasoningTokens
+				}
+				out <- llm.TelemetryPart{
+					InputTokens:     response.Usage.PromptTokens,
+					OutputTokens:    response.Usage.CompletionTokens,
+					ReasoningTokens: reasoningTokens,
+					Duration:        time.Since(startTime),
 				}
 			}
 		}

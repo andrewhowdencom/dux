@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // PartType identifies the structural intent of a Message Part.
@@ -14,6 +15,7 @@ const (
 	TypeToolCall       PartType = "tool_call"
 	TypeToolDefinition PartType = "tool_definition"
 	TypeToolResult     PartType = "tool_result"
+	TypeTelemetry      PartType = "telemetry"
 )
 
 // Part defines an abstract section of an LLM generation.
@@ -83,6 +85,16 @@ type ToolResultPart struct {
 }
 
 func (t ToolResultPart) Type() PartType { return TypeToolResult }
+
+// TelemetryPart represents provider execution metrics (token usage, latency).
+type TelemetryPart struct {
+	InputTokens     int
+	OutputTokens    int
+	ReasoningTokens int
+	Duration        time.Duration
+}
+
+func (t TelemetryPart) Type() PartType { return TypeTelemetry }
 
 // Identity represents the exact source and nature of a message.
 type Identity struct {

@@ -79,6 +79,13 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 					Args: tc.Function.Arguments.ToMap(),
 				}
 			}
+			if resp.Done {
+				out <- llm.TelemetryPart{
+					InputTokens:  resp.PromptEvalCount,
+					OutputTokens: resp.EvalCount,
+					Duration:     resp.TotalDuration,
+				}
+			}
 			return nil
 		})
 

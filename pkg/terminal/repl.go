@@ -29,6 +29,7 @@ type chatMessage struct {
 	content   string
 	thinking  string
 	toolCalls []string
+	telemetry *llm.TelemetryPart
 }
 
 type uiModel struct {
@@ -273,6 +274,20 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case llm.ToolDefinitionPart:
 				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("Schema: %s", part.Name))
+			case llm.TelemetryPart:
+				if m.messages[lastIdx].telemetry == nil {
+					m.messages[lastIdx].telemetry = &llm.TelemetryPart{
+						InputTokens:     part.InputTokens,
+						OutputTokens:    part.OutputTokens,
+						ReasoningTokens: part.ReasoningTokens,
+						Duration:        part.Duration,
+					}
+				} else {
+					m.messages[lastIdx].telemetry.InputTokens += part.InputTokens
+					m.messages[lastIdx].telemetry.OutputTokens += part.OutputTokens
+					m.messages[lastIdx].telemetry.ReasoningTokens += part.ReasoningTokens
+					m.messages[lastIdx].telemetry.Duration += part.Duration
+				}
 			}
 		}
 
@@ -336,6 +351,22 @@ func (m *uiModel) updateViewport() {
 			b.WriteString(strings.TrimSpace(formatStr))
 			b.WriteString("\n")
 		}
+
+		if msg.telemetry != nil {
+			var res string
+			if msg.telemetry.ReasoningTokens > 0 {
+				res = fmt.Sprintf(" (including %d reasoning)", msg.telemetry.ReasoningTokens)
+			}
+			telemetryStr := fmt.Sprintf("\n⚡ %.1fs | Tokens: %d in, %d out%s",
+				msg.telemetry.Duration.Seconds(),
+				msg.telemetry.InputTokens,
+				msg.telemetry.OutputTokens,
+				res,
+			)
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(telemetryStr))
+			b.WriteString("\n")
+		}
+
 		b.WriteString("\n")
 	}
 
