@@ -92,6 +92,9 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 						Parameters:  params,
 					},
 				})
+			case llm.ToolResultPart:
+				b, _ := json.Marshal(part.Result)
+				textContent += string(b)
 			}
 		}
 

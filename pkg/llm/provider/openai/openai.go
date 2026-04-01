@@ -77,6 +77,8 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			role = openai.ChatMessageRoleSystem
 		}
 
+		var toolCallID string
+
 		for _, p := range m.Parts {
 			switch part := p.(type) {
 			case llm.TextPart:
@@ -86,12 +88,19 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			case llm.ToolRequestPart:
 				argsJSON, _ := json.Marshal(part.Args)
 				toolCalls = append(toolCalls, openai.ToolCall{
+					ID:   part.ToolID,
 					Type: openai.ToolTypeFunction,
 					Function: openai.FunctionCall{
 						Name:      part.Name,
 						Arguments: string(argsJSON),
 					},
 				})
+			case llm.ToolResultPart:
+				b, _ := json.Marshal(part.Result)
+				textContent += string(b)
+				if part.ToolID != "" {
+					toolCallID = part.ToolID
+				}
 			case llm.ToolDefinitionPart:
 				// Map ToolDefinitionPart to reqTools
 				var parameters interface{}
@@ -121,6 +130,7 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 				Content:          textContent,
 				ReasoningContent: thinkingContent,
 				ToolCalls:        toolCalls,
+				ToolCallID:       toolCallID,
 			}
 			reqMessages = append(reqMessages, msg)
 		}
@@ -153,6 +163,7 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 
 		// Tool calls can arrive in chunks. We need to accumulate them.
 		type toolCallBuilder struct {
+			ID        string
 			Name      string
 			Arguments string
 		}
@@ -197,6 +208,9 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 							toolCallBuilders[idx] = &toolCallBuilder{}
 						}
 						b := toolCallBuilders[idx]
+						if tc.ID != "" {
+							b.ID = tc.ID
+						}
 						if tc.Function.Name != "" {
 							b.Name += tc.Function.Name
 						}
