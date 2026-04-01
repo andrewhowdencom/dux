@@ -88,6 +88,13 @@ func (t *PatchTool) Execute(ctx context.Context, args map[string]interface{}) (i
 	origSnippet := strings.ReplaceAll(originalSnippet, "\r\n", "\n")
 	replSnippet := strings.ReplaceAll(replacementSnippet, "\r\n", "\n")
 
+	// LLMs often output literal "\n" or "\t" characters when they intend to format actual newlines or tabs in strings.
+	// We unescape them here so that exact string matching works gracefully.
+	origSnippet = strings.ReplaceAll(origSnippet, "\\n", "\n")
+	origSnippet = strings.ReplaceAll(origSnippet, "\\t", "\t")
+	replSnippet = strings.ReplaceAll(replSnippet, "\\n", "\n")
+	replSnippet = strings.ReplaceAll(replSnippet, "\\t", "\t")
+
 	count := strings.Count(content, origSnippet)
 	if count == 0 {
 		return nil, fmt.Errorf("failed to apply patch: original_snippet was not found in %q (check whitespace and line breaks)", path)

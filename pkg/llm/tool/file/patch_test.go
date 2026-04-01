@@ -58,6 +58,17 @@ func TestPatchTool_Execute(t *testing.T) {
 			wantErrSubstr: "was not found in",
 		},
 		{
+			name: "successful replace with literal escaped newline",
+			args: map[string]interface{}{
+				"path":                testPath,
+				"original_snippet":    "line 4\\n",
+				"replacement_snippet": "new line 4\\n",
+			},
+			wantError:   false,
+			wantFile:    testPath,
+			wantContent: "line 1\nline 2\nline exactly the same\nnew line 4\nline exactly the same\nline 6\n",
+		},
+		{
 			name: "ambiguous multiple matches",
 			args: map[string]interface{}{
 				"path":                testPath,
