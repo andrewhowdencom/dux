@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,6 +40,7 @@ type uiModel struct {
 
 	viewport viewport.Model
 	textarea textarea.Model
+	spinner  spinner.Model
 	hitl     *BubbleTeaHITL
 
 	pendingToolPrompt *ToolApprovalRequestMsg
@@ -104,6 +106,11 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme string,
 		rend, _ = glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(80))
 	}
 
+	// Initialize Spinner
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	return uiModel{
 		ctx:       ctx,
 		engine:    engine,
@@ -111,15 +118,16 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme string,
 		theme:     theme,
 		textarea:  ta,
 		viewport:  vp,
-		renderer: rend,
-		messages: []chatMessage{},
+		spinner:   s,
+		renderer:  rend,
+		messages:  []chatMessage{},
 		hitl:      hitl,
 	}
 }
 
 func (m uiModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
-	cmds = append(cmds, textarea.Blink)
+	cmds = append(cmds, textarea.Blink, m.spinner.Tick)
 	if m.hitl != nil {
 		cmds = append(cmds, waitForHITL(m.hitl.RequestCh))
 	}
@@ -138,6 +146,10 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, tiCmd, vpCmd)
 
 	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc, tea.KeyCtrlD:
@@ -338,6 +350,14 @@ func (m *uiModel) updateViewport() {
 func (m uiModel) View() string {
 	if m.quit {
 		return "Chat session ended.\n"
+	}
+
+	if m.isStreaming {
+		m.textarea.Prompt = m.spinner.View() + " "
+		m.textarea.Placeholder = "Dux is thinking..."
+	} else {
+		m.textarea.Prompt = "┃ "
+		m.textarea.Placeholder = "Ask Dux a question..."
 	}
 
 	var inputView string
