@@ -57,84 +57,7 @@ func New(rawConfig map[string]interface{}) (provider.Provider, error) {
 func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
 	out := make(chan llm.Part)
 
-	var reqMessages []openai.ChatCompletionMessage
-	var reqTools []openai.Tool
-
-	for _, m := range messages {
-		var textContent string
-		var thinkingContent string
-		var toolCalls []openai.ToolCall
-
-		// Translate dux roles to openai roles
-		role := m.Identity.Role
-		if role == "tool" {
-			role = openai.ChatMessageRoleTool
-		} else if role == "model" || role == "assistant" {
-			role = openai.ChatMessageRoleAssistant
-		} else if role == "user" {
-			role = openai.ChatMessageRoleUser
-		} else if role == "system" {
-			role = openai.ChatMessageRoleSystem
-		}
-
-		var toolCallID string
-
-		for _, p := range m.Parts {
-			switch part := p.(type) {
-			case llm.TextPart:
-				textContent += string(part)
-			case llm.ReasoningPart:
-				thinkingContent += string(part)
-			case llm.ToolRequestPart:
-				argsJSON, _ := json.Marshal(part.Args)
-				toolCalls = append(toolCalls, openai.ToolCall{
-					ID:   part.ToolID,
-					Type: openai.ToolTypeFunction,
-					Function: openai.FunctionCall{
-						Name:      part.Name,
-						Arguments: string(argsJSON),
-					},
-				})
-			case llm.ToolResultPart:
-				b, _ := json.Marshal(part.Result)
-				textContent += string(b)
-				if part.ToolID != "" {
-					toolCallID = part.ToolID
-				}
-			case llm.ToolDefinitionPart:
-				// Map ToolDefinitionPart to reqTools
-				var parameters interface{}
-				if len(part.Parameters) > 0 {
-					_ = json.Unmarshal(part.Parameters, &parameters)
-				} else {
-					// Fallback to empty object schema
-					parameters = map[string]interface{}{
-						"type":       "object",
-						"properties": map[string]interface{}{},
-					}
-				}
-				reqTools = append(reqTools, openai.Tool{
-					Type: openai.ToolTypeFunction,
-					Function: &openai.FunctionDefinition{
-						Name:        part.Name,
-						Description: part.Description,
-						Parameters:  parameters,
-					},
-				})
-			}
-		}
-
-		if textContent != "" || thinkingContent != "" || len(toolCalls) > 0 {
-			msg := openai.ChatCompletionMessage{
-				Role:             role,
-				Content:          textContent,
-				ReasoningContent: thinkingContent,
-				ToolCalls:        toolCalls,
-				ToolCallID:       toolCallID,
-			}
-			reqMessages = append(reqMessages, msg)
-		}
-	}
+	reqMessages, reqTools := buildOpenAIRequest(messages)
 
 	go func() {
 		defer close(out)
@@ -238,4 +161,87 @@ func (p *Provider) ListModels(ctx context.Context) ([]string, error) {
 		models = append(models, m.ID)
 	}
 	return models, nil
+}
+
+// buildOpenAIRequest extracts abstract llm.Messages into OpenAI's specific api layout.
+func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage, []openai.Tool) {
+	var reqMessages []openai.ChatCompletionMessage
+	var reqTools []openai.Tool
+
+	for _, m := range messages {
+		var textContent string
+		var thinkingContent string
+		var toolCalls []openai.ToolCall
+
+		// Translate dux roles to openai roles
+		role := m.Identity.Role
+		if role == "tool" {
+			role = openai.ChatMessageRoleTool
+		} else if role == "model" || role == "assistant" {
+			role = openai.ChatMessageRoleAssistant
+		} else if role == "user" {
+			role = openai.ChatMessageRoleUser
+		} else if role == "system" {
+			role = openai.ChatMessageRoleSystem
+		}
+
+		var toolCallID string
+
+		for _, p := range m.Parts {
+			switch part := p.(type) {
+			case llm.TextPart:
+				textContent += string(part)
+			case llm.ReasoningPart:
+				thinkingContent += string(part)
+			case llm.ToolRequestPart:
+				argsJSON, _ := json.Marshal(part.Args)
+				toolCalls = append(toolCalls, openai.ToolCall{
+					ID:   part.ToolID,
+					Type: openai.ToolTypeFunction,
+					Function: openai.FunctionCall{
+						Name:      part.Name,
+						Arguments: string(argsJSON),
+					},
+				})
+			case llm.ToolResultPart:
+				b, _ := json.Marshal(part.Result)
+				textContent += string(b)
+				if part.ToolID != "" {
+					toolCallID = part.ToolID
+				}
+			case llm.ToolDefinitionPart:
+				// Map ToolDefinitionPart to reqTools
+				var parameters interface{}
+				if len(part.Parameters) > 0 {
+					_ = json.Unmarshal(part.Parameters, &parameters)
+				} else {
+					// Fallback to empty object schema
+					parameters = map[string]interface{}{
+						"type":       "object",
+						"properties": map[string]interface{}{},
+					}
+				}
+				reqTools = append(reqTools, openai.Tool{
+					Type: openai.ToolTypeFunction,
+					Function: &openai.FunctionDefinition{
+						Name:        part.Name,
+						Description: part.Description,
+						Parameters:  parameters,
+					},
+				})
+			}
+		}
+
+		if textContent != "" || thinkingContent != "" || len(toolCalls) > 0 {
+			msg := openai.ChatCompletionMessage{
+				Role:             role,
+				Content:          textContent,
+				ReasoningContent: thinkingContent,
+				ToolCalls:        toolCalls,
+				ToolCallID:       toolCallID,
+			}
+			reqMessages = append(reqMessages, msg)
+		}
+	}
+	return reqMessages, reqTools
 }

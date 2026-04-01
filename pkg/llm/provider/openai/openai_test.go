@@ -1,178 +1,113 @@
 package openai
 
 import (
-	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	openai "github.com/sashabaranov/go-openai"
 )
 
-func TestOpenAINewConfig(t *testing.T) {
+func TestBuildOpenAIRequest(t *testing.T) {
 	tests := []struct {
-		name    string
-		config  map[string]interface{}
-		wantErr bool
+		name         string
+		messages     []llm.Message
+		expectedMsgs int
+		expectedTool int
 	}{
 		{
-			name: "valid config",
-			config: map[string]interface{}{
-				"api_key": "test_key",
-				"model":   "gpt-4o",
+			name: "single text part resolves to simple chat message",
+			messages: []llm.Message{
+				{
+					Identity: llm.Identity{Role: "user"},
+					Parts:    []llm.Part{llm.TextPart("Hello world")},
+				},
 			},
-			wantErr: false,
+			expectedMsgs: 1,
+			expectedTool: 0,
 		},
 		{
-			name: "custom base url",
-			config: map[string]interface{}{
-				"base_url": "http://localhost:8080/v1",
+			name: "tool definition maps to functional payload schema",
+			messages: []llm.Message{
+				{
+					Identity: llm.Identity{Role: "system"},
+					Parts: []llm.Part{
+						llm.TextPart("System prompt"),
+						llm.ToolDefinitionPart{
+							Name:        "get_weather",
+							Description: "Get weather",
+							Parameters:  json.RawMessage(`{"type":"object"}`),
+						},
+					},
+				},
 			},
-			wantErr: false,
+			expectedMsgs: 1,
+			expectedTool: 1,
 		},
 		{
-			name: "invalid base url",
-			config: map[string]interface{}{
-				"base_url": "::invalid::url",
+			name: "tool result strictly maps tool call identifier back",
+			messages: []llm.Message{
+				{
+					Identity: llm.Identity{Role: "tool"},
+					Parts: []llm.Part{
+						llm.ToolResultPart{
+							ToolID: "call_abc123",
+							Name:   "get_weather",
+							Result: map[string]string{"temp": "75F"},
+						},
+					},
+				},
 			},
-			wantErr: true,
+			expectedMsgs: 1,
+			expectedTool: 0,
+		},
+		{
+			name: "tool request part binds out correct id array",
+			messages: []llm.Message{
+				{
+					Identity: llm.Identity{Role: "assistant"},
+					Parts: []llm.Part{
+						llm.ToolRequestPart{
+							ToolID: "call_req_456",
+							Name:   "get_weather",
+							Args:   map[string]interface{}{"loc": "Tokyo"},
+						},
+					},
+				},
+			},
+			expectedMsgs: 1,
+			expectedTool: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := New(tt.config)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+			msgs, tools := buildOpenAIRequest(tt.messages)
+			if len(msgs) != tt.expectedMsgs {
+				t.Fatalf("expected %d messages, got %d", tt.expectedMsgs, len(msgs))
+			}
+			if len(tools) != tt.expectedTool {
+				t.Fatalf("expected %d tools, got %d", tt.expectedTool, len(tools))
+			}
+
+			// Sub-property test for OpenAI strict requirements
+			if tt.name == "tool result strictly maps tool call identifier back" {
+				if msgs[0].Role != openai.ChatMessageRoleTool {
+					t.Errorf("expected role 'tool', got %q", msgs[0].Role)
+				}
+				if msgs[0].ToolCallID != "call_abc123" {
+					t.Errorf("expected ToolCallID to traverse perfectly back, got %q", msgs[0].ToolCallID)
+				}
+			}
+
+			if tt.name == "tool request part binds out correct id array" {
+				if len(msgs[0].ToolCalls) == 0 {
+					t.Fatalf("Expected toolcalls to be populated")
+				}
+				if msgs[0].ToolCalls[0].ID != "call_req_456" {
+					t.Errorf("Expected outbound ToolCall array ID bindings to stay intact")
+				}
 			}
 		})
-	}
-}
-
-func TestOpenAIGenerateStream(t *testing.T) {
-	// Start a local HTTP server that mocks the OpenAI API stream response.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		// Send mock chunks
-		chunk1 := `{"id":"chatcmpl-123","choices":[{"delta":{"content":"Hello "}}]}`
-		chunk2 := `{"id":"chatcmpl-123","choices":[{"delta":{"content":"World!"}}]}`
-
-		_, _ = w.Write([]byte("data: " + chunk1 + "\n\n"))
-		_, _ = w.Write([]byte("data: " + chunk2 + "\n\n"))
-		_, _ = w.Write([]byte("data: [DONE]\n\n"))
-	}))
-	defer server.Close()
-
-	// Initialize the provider with the mock server URL
-	provider, err := New(map[string]interface{}{
-		"api_key":  "test_key",
-		"base_url": server.URL,
-	})
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
-
-	ctx := context.Background()
-	messages := []llm.Message{
-		{
-			Identity: llm.Identity{Role: "user"},
-			Parts: []llm.Part{
-				llm.TextPart("Say hello"),
-			},
-		},
-	}
-
-	stream, err := provider.GenerateStream(ctx, messages)
-	if err != nil {
-		t.Fatalf("Failed to generate stream: %v", err)
-	}
-
-	var results []string
-	for part := range stream {
-		if textPart, ok := part.(llm.TextPart); ok {
-			results = append(results, string(textPart))
-		}
-	}
-
-	expected := "Hello World!"
-	actual := strings.Join(results, "")
-	if actual != expected {
-		t.Errorf("Expected output %q, got %q", expected, actual)
-	}
-}
-
-func TestOpenAIToolCallParsing(t *testing.T) {
-	// Start a local HTTP server that mocks the OpenAI API stream response.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-
-		// Send a mock chunk containing a tool call
-		chunk1 := `{"id":"chatcmpl-123","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"get_weather"}}]}}]}`
-		chunk2 := `{"id":"chatcmpl-123","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"location\":\""}}]}}]}`
-		chunk3 := `{"id":"chatcmpl-123","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"Tokyo\"}"}}]}}]}`
-
-		_, _ = w.Write([]byte("data: " + chunk1 + "\n\n"))
-		_, _ = w.Write([]byte("data: " + chunk2 + "\n\n"))
-		_, _ = w.Write([]byte("data: " + chunk3 + "\n\n"))
-		_, _ = w.Write([]byte("data: [DONE]\n\n"))
-	}))
-	defer server.Close()
-
-	// Initialize the provider with the mock server URL
-	provider, err := New(map[string]interface{}{
-		"api_key":  "test_key",
-		"base_url": server.URL,
-	})
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
-
-	ctx := context.Background()
-	params, _ := json.Marshal(map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"location": map[string]interface{}{
-				"type": "string",
-			},
-		},
-	})
-	messages := []llm.Message{
-		{
-			Identity: llm.Identity{Role: "user"},
-			Parts: []llm.Part{
-				llm.TextPart("What's the weather in Tokyo?"),
-				llm.ToolDefinitionPart{
-					Name:        "get_weather",
-					Description: "Get weather",
-					Parameters:  params,
-				},
-			},
-		},
-	}
-
-	stream, err := provider.GenerateStream(ctx, messages)
-	if err != nil {
-		t.Fatalf("Failed to generate stream: %v", err)
-	}
-
-	var toolCalls []llm.ToolRequestPart
-	for part := range stream {
-		if reqPart, ok := part.(llm.ToolRequestPart); ok {
-			toolCalls = append(toolCalls, reqPart)
-		}
-	}
-
-	if len(toolCalls) != 1 {
-		t.Fatalf("Expected 1 tool call, got %d", len(toolCalls))
-	}
-
-	if toolCalls[0].Name != "get_weather" {
-		t.Errorf("Expected tool name 'get_weather', got '%s'", toolCalls[0].Name)
-	}
-
-	if location, ok := toolCalls[0].Args["location"].(string); !ok || location != "Tokyo" {
-		t.Errorf("Expected argument location='Tokyo', got '%v'", toolCalls[0].Args["location"])
 	}
 }

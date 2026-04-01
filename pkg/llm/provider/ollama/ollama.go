@@ -53,6 +53,59 @@ func New(rawConfig map[string]interface{}) (provider.Provider, error) {
 func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
 	out := make(chan llm.Part)
 
+	reqMessages, reqTools := buildOllamaRequest(messages)
+
+	go func() {
+		defer close(out)
+
+		t := true
+		req := &api.ChatRequest{
+			Model:    o.model,
+			Messages: reqMessages,
+			Tools:    reqTools,
+			Stream:   &t,
+		}
+
+		err := o.client.Chat(ctx, req, func(resp api.ChatResponse) error {
+			if resp.Message.Content != "" {
+				out <- llm.TextPart(resp.Message.Content)
+			}
+			if resp.Message.Thinking != "" {
+				out <- llm.ReasoningPart(resp.Message.Thinking)
+			}
+			for _, tc := range resp.Message.ToolCalls {
+				out <- llm.ToolRequestPart{
+					Name: tc.Function.Name,
+					Args: tc.Function.Arguments.ToMap(),
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			out <- llm.TextPart(fmt.Sprintf("\n[Ollama Provider Error: %v]", err))
+		}
+	}()
+
+	return out, nil
+}
+
+// ListModels returns a list of available models from the Ollama instance.
+func (o *Provider) ListModels(ctx context.Context) ([]string, error) {
+	resp, err := o.client.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ollama models: %w", err)
+	}
+
+	var models []string
+	for _, m := range resp.Models {
+		models = append(models, m.Name)
+	}
+	return models, nil
+}
+
+// buildOllamaRequest extracts abstract llm.Message structures into Ollama's specific api layout.
+func buildOllamaRequest(messages []llm.Message) ([]api.Message, api.Tools) {
 	var reqMessages []api.Message
 	var reqTools api.Tools
 
@@ -107,52 +160,5 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			})
 		}
 	}
-
-	go func() {
-		defer close(out)
-
-		t := true
-		req := &api.ChatRequest{
-			Model:    o.model,
-			Messages: reqMessages,
-			Tools:    reqTools,
-			Stream:   &t,
-		}
-
-		err := o.client.Chat(ctx, req, func(resp api.ChatResponse) error {
-			if resp.Message.Content != "" {
-				out <- llm.TextPart(resp.Message.Content)
-			}
-			if resp.Message.Thinking != "" {
-				out <- llm.ReasoningPart(resp.Message.Thinking)
-			}
-			for _, tc := range resp.Message.ToolCalls {
-				out <- llm.ToolRequestPart{
-					Name: tc.Function.Name,
-					Args: tc.Function.Arguments.ToMap(),
-				}
-			}
-			return nil
-		})
-
-		if err != nil {
-			out <- llm.TextPart(fmt.Sprintf("\n[Ollama Provider Error: %v]", err))
-		}
-	}()
-
-	return out, nil
-}
-
-// ListModels returns a list of available models from the Ollama instance.
-func (o *Provider) ListModels(ctx context.Context) ([]string, error) {
-	resp, err := o.client.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list ollama models: %w", err)
-	}
-
-	var models []string
-	for _, m := range resp.Models {
-		models = append(models, m.Name)
-	}
-	return models, nil
+	return reqMessages, reqTools
 }
