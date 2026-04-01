@@ -13,13 +13,22 @@
     tools:
       - name: "time"
         enabled: true
-        requirements:
-          supervision: false
-          sandbox: false
       - name: "bash"
         enabled: true
         requirements:
           supervision: true
+      - name: "file_read"
+        enabled: true
+      - name: "file_write"
+        enabled: true
+        requirements:
+          supervision: true
+      - name: "file_patch"
+        enabled: true
+        requirements:
+          supervision: true
+      - name: "file_list"
+        enabled: true
     enrichers:
       - type: "os"
 

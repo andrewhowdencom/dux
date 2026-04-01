@@ -12,6 +12,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
 	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	bashtool "github.com/andrewhowdencom/dux/pkg/llm/tool/bash"
+	filetool "github.com/andrewhowdencom/dux/pkg/llm/tool/file"
 	timetool "github.com/andrewhowdencom/dux/pkg/llm/tool/time"
 )
 
@@ -65,6 +66,14 @@ func newResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
 			staticTools = append(staticTools, timetool.New())
 		case "bash":
 			staticTools = append(staticTools, bashtool.New())
+		case "file_read":
+			staticTools = append(staticTools, filetool.NewRead())
+		case "file_write":
+			staticTools = append(staticTools, filetool.NewWrite())
+		case "file_patch":
+			staticTools = append(staticTools, filetool.NewPatch())
+		case "file_list":
+			staticTools = append(staticTools, filetool.NewList())
 		default:
 			return nil, fmt.Errorf("unknown tool name: %s", c)
 		}
