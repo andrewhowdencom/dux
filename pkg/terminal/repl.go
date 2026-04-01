@@ -39,6 +39,9 @@ type uiModel struct {
 
 	viewport viewport.Model
 	textarea textarea.Model
+	hitl     *BubbleTeaHITL
+
+	pendingToolPrompt *ToolApprovalRequestMsg
 
 	renderer *glamour.TermRenderer
 	messages []chatMessage
@@ -67,7 +70,16 @@ func waitForNextChunk(ch <-chan llm.Message) tea.Cmd {
 	}
 }
 
-func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme string) uiModel {
+func waitForHITL(ch chan ToolApprovalRequestMsg) tea.Cmd {
+	return func() tea.Msg {
+		if ch == nil {
+			return nil
+		}
+		return <-ch
+	}
+}
+
+func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme string, hitl *BubbleTeaHITL) uiModel {
 	ta := textarea.New()
 	ta.Placeholder = "Ask Dux a question..."
 	ta.Focus()
@@ -101,11 +113,17 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme string)
 		viewport:  vp,
 		renderer: rend,
 		messages: []chatMessage{},
+		hitl:      hitl,
 	}
 }
 
 func (m uiModel) Init() tea.Cmd {
-	return textarea.Blink
+	var cmds []tea.Cmd
+	cmds = append(cmds, textarea.Blink)
+	if m.hitl != nil {
+		cmds = append(cmds, waitForHITL(m.hitl.RequestCh))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -130,6 +148,19 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case tea.KeyEnter:
+			if m.pendingToolPrompt != nil {
+				v := strings.TrimSpace(strings.ToLower(m.textarea.Value()))
+				if v == "y" || v == "yes" || v == "" {
+					m.pendingToolPrompt.ReplyCh <- true
+				} else {
+					m.pendingToolPrompt.ReplyCh <- false
+				}
+				m.pendingToolPrompt = nil
+				m.textarea.Reset()
+				m.updateViewport()
+				return m, waitForHITL(m.hitl.RequestCh)
+			}
+
 			if m.isStreaming {
 				break
 			}
@@ -226,6 +257,9 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 		m.viewport.GotoBottom() // Auto-scroll to bottom while streaming
 		cmds = append(cmds, waitForNextChunk(m.streamCh))
+
+	case ToolApprovalRequestMsg:
+		m.pendingToolPrompt = &msg
 	}
 
 	return m, tea.Batch(cmds...)
@@ -296,18 +330,27 @@ func (m uiModel) View() string {
 		return "Chat session ended.\n"
 	}
 
+	var inputView string
+	if m.pendingToolPrompt != nil {
+		inputView = lipgloss.NewStyle().Foreground(lipgloss.Color("215")).Render(
+			fmt.Sprintf("Approve tool '%s' execution? [Y/n]: ", m.pendingToolPrompt.Req.Name),
+		) + "\n" + m.textarea.View()
+	} else {
+		inputView = m.textarea.View()
+	}
+
 	return fmt.Sprintf(
 		"%s\n%s\n%s",
 		m.viewport.View(),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("238")).Render(strings.Repeat("─", m.viewport.Width)),
-		m.textarea.View(),
+		inputView,
 	)
 }
 
 // StartREPL begins a synchronous interactive loop wrapping the engine stream.
-func StartREPL(ctx context.Context, engine llm.Engine, modelName, theme string, in io.Reader, out io.Writer) error {
+func StartREPL(ctx context.Context, engine llm.Engine, modelName, theme string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer) error {
 	p := tea.NewProgram(
-		newUIModel(ctx, engine, modelName, theme),
+		newUIModel(ctx, engine, modelName, theme, hitl),
 		tea.WithAltScreen(),
 		tea.WithInput(in),
 		tea.WithOutput(out),

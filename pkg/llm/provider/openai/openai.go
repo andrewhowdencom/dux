@@ -82,7 +82,9 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			}
 			return
 		}
-		defer stream.Close()
+		defer func() {
+			_ = stream.Close()
+		}()
 
 		// Tool calls can arrive in chunks. We need to accumulate them.
 		type toolCallBuilder struct {
@@ -175,13 +177,14 @@ func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage,
 
 		// Translate dux roles to openai roles
 		role := m.Identity.Role
-		if role == "tool" {
+		switch role {
+		case "tool":
 			role = openai.ChatMessageRoleTool
-		} else if role == "model" || role == "assistant" {
+		case "model", "assistant":
 			role = openai.ChatMessageRoleAssistant
-		} else if role == "user" {
+		case "user":
 			role = openai.ChatMessageRoleUser
-		} else if role == "system" {
+		case "system":
 			role = openai.ChatMessageRoleSystem
 		}
 

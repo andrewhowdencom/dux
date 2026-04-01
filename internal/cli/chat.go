@@ -21,6 +21,7 @@ import (
 var providerID string
 var chatTheme string
 var agentName string
+var unsafeAllTools bool
 
 var chatCmd = &cobra.Command{
 	Use:   "chat",
@@ -52,6 +53,20 @@ var chatCmd = &cobra.Command{
 			}
 		}
 
+		globalTools := config.LoadGlobalTools()
+
+		requiresSupervision := make(map[string]bool)
+		toolEnabled := make(map[string]bool)
+
+		for _, t := range globalTools {
+			toolEnabled[t.Name] = t.Enabled
+			if t.Requirements.Supervision != nil {
+				requiresSupervision[t.Name] = *t.Requirements.Supervision
+			} else {
+				requiresSupervision[t.Name] = true
+			}
+		}
+
 		if agentName != "" {
 			agents, err := config.LoadAgents(agentsFilePath)
 			if err != nil {
@@ -70,13 +85,29 @@ var chatCmd = &cobra.Command{
 				}
 				enrichers = en
 
-				res, err := newResolversFromConfig(agt.Context.Tools)
-				if err != nil {
-					return fmt.Errorf("failed to initialize tools for agent %q: %w", agentName, err)
+				for _, t := range agt.Context.Tools {
+					toolEnabled[t.Name] = t.Enabled
+					if t.Requirements.Supervision != nil {
+						requiresSupervision[t.Name] = *t.Requirements.Supervision
+					} else if _, exists := requiresSupervision[t.Name]; !exists {
+						requiresSupervision[t.Name] = true
+					}
 				}
-				resolvers = res
 			}
 		}
+
+		var enabledToolNames []string
+		for name, enabled := range toolEnabled {
+			if enabled {
+				enabledToolNames = append(enabledToolNames, name)
+			}
+		}
+
+		res, err := newResolversFromConfig(enabledToolNames)
+		if err != nil {
+			return fmt.Errorf("failed to initialize tools: %w", err)
+		}
+		resolvers = res
 
 		selectedCfg, err := config.LoadLLMProvider(finalProvider)
 		if err != nil {
@@ -90,11 +121,15 @@ var chatCmd = &cobra.Command{
 
 		mem := history.NewInMemory()
 
+		hitl := terminal.NewBubbleTeaHITL()
+		hitlMiddleware := llm.NewHITLMiddleware(hitl, requiresSupervision, unsafeAllTools)
+
 		opts := []adapter.Option{
 			adapter.WithProvider(prv),
 			adapter.WithHistory(mem),
 			adapter.WithSystemPrompt(sysPrompt),
 			adapter.WithEnrichers(enrichers),
+			adapter.WithToolMiddleware(hitlMiddleware),
 		}
 		for _, r := range resolvers {
 			opts = append(opts, adapter.WithResolver(r))
@@ -116,7 +151,7 @@ var chatCmd = &cobra.Command{
 			theme = "dark"
 		}
 
-		_ = terminal.StartREPL(ctx, engine, modelName, theme, os.Stdin, os.Stdout)
+		_ = terminal.StartREPL(ctx, engine, modelName, theme, hitl, os.Stdin, os.Stdout)
 
 		fmt.Println("\nChat session ended.")
 		return nil
@@ -129,5 +164,6 @@ func init() {
 	chatCmd.MarkFlagsMutuallyExclusive("provider", "agent")
 	chatCmd.Flags().StringVar(&chatTheme, "theme", "dark", "Theme for chat rendering. Supported: ascii, dark, dracula, light, notty, pink, tokyo-night, or path/to/style.json")
 	_ = viper.BindPFlag("chat.theme", chatCmd.Flags().Lookup("theme"))
+	chatCmd.Flags().BoolVar(&unsafeAllTools, "unsafe-all-tools", false, "Disable hitl prompts unconditionally for all tools")
 	RootCmd.AddCommand(chatCmd)
 }
