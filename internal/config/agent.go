@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/viper"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -13,11 +15,24 @@ type Enricher struct {
 	Text string `yaml:"text,omitempty"`
 }
 
+// ToolRequirements details specific execution protections for a given tool.
+type ToolRequirements struct {
+	Supervision *bool `yaml:"supervision,omitempty"`
+	Sandbox     *bool `yaml:"sandbox,omitempty"`
+}
+
+// ToolConfig maps a specific tool and its deployment requirements.
+type ToolConfig struct {
+	Name         string           `yaml:"name"`
+	Enabled      bool             `yaml:"enabled"`
+	Requirements ToolRequirements `yaml:"requirements,omitempty"`
+}
+
 // AgentContext defines dynamic and static context to configure an agent's memory before interaction.
 type AgentContext struct {
 	Enrichers []Enricher `yaml:"enrichers,omitempty"`
-	Tools     []string   `yaml:"tools,omitempty"`
-	System    string     `yaml:"system,omitempty"`
+	Tools     []ToolConfig `yaml:"tools,omitempty"`
+	System    string       `yaml:"system,omitempty"`
 }
 
 // Agent defines a distinct interactive role combining a provider and dynamic context.
@@ -57,4 +72,30 @@ func GetAgent(agents []Agent, name string) (Agent, error) {
 		}
 	}
 	return Agent{}, fmt.Errorf("agent %q not found", name)
+}
+
+// LoadGlobalTools retrieves the application-wide defined tools, securely injecting missing mandatory defaults (e.g. 'time').
+func LoadGlobalTools() []ToolConfig {
+	var globalTools []ToolConfig
+	_ = viper.UnmarshalKey("tools", &globalTools)
+
+	hasTime := false
+	for _, t := range globalTools {
+		if t.Name == "time" {
+			hasTime = true
+			break
+		}
+	}
+	if !hasTime {
+		f := false
+		globalTools = append(globalTools, ToolConfig{
+			Name:    "time",
+			Enabled: true,
+			Requirements: ToolRequirements{
+				Supervision: &f,
+			},
+		})
+	}
+
+	return globalTools
 }

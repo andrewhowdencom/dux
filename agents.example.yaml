@@ -11,7 +11,11 @@
       Respond strictly to the prompt with complete, accurate answers.
       Always incorporate the injected enrichers as part of your source truth context.
     tools:
-      - "time"
+      - name: "time"
+        enabled: true
+        requirements:
+          supervision: false
+          sandbox: false
     enrichers:
       - type: "os"
 

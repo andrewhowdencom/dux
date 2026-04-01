@@ -24,7 +24,10 @@ In your `agents.yaml` file, define the support agent profile. You can also utili
       Address the user's issue directly and concisely. If you do not know the answer,
       apologize and recommend they contact a human agent.
     tools:
-      - "time"
+      - name: "time"
+        enabled: true
+        requirements:
+          supervision: false
     enrichers:
       - type: "os"
 ```

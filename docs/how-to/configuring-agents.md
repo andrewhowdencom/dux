@@ -23,6 +23,11 @@ An agents file uses a YAML array of agent definitions. You can start by checking
     enrichers:
       - type: "time"
       - type: "os"
+    tools:
+      - name: "bash"
+        enabled: true
+        requirements:
+          supervision: true
 
 - name: "writer"
   provider: "openai"
@@ -37,6 +42,7 @@ An agents file uses a YAML array of agent definitions. You can start by checking
 *   `provider` (string): The LLM Provider ID from your core configuration (e.g., `config.yaml` `llm.providers` array).
 *   `context` (object): Options for defining dynamic and static inputs.
     *   `system` (string): The initial prompt injected seamlessly at the start of your chat instance.
+    *   `tools` (array): A list of objects binding specific tool configurations (`name`, `enabled`, `requirements: { supervision: true/false }`) securely into the LLM context.
     *   `enrichers` (array): A list of dynamic context injection tools (e.g. `type: "time"` or `type: "os"`).
 
 ## Using an Agent in the CLI
