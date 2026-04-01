@@ -9,6 +9,7 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/dux/internal/config"
+	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
@@ -40,6 +41,7 @@ var chatCmd = &cobra.Command{
 		var finalProvider = providerID
 		var sysPrompt string
 		var enrichers []enrich.Enricher
+		var resolvers []llm.ToolResolver
 
 		// Resolve agents file default if not specified explicitly
 		var agentsFilePath = agentsFile
@@ -67,6 +69,12 @@ var chatCmd = &cobra.Command{
 					return fmt.Errorf("failed to initialize enrichers for agent %q: %w", agentName, err)
 				}
 				enrichers = en
+
+				res, err := newResolversFromConfig(agt.Context.Tools)
+				if err != nil {
+					return fmt.Errorf("failed to initialize tools for agent %q: %w", agentName, err)
+				}
+				resolvers = res
 			}
 		}
 
@@ -82,12 +90,17 @@ var chatCmd = &cobra.Command{
 
 		mem := history.NewInMemory()
 
-		engine := adapter.New(
+		opts := []adapter.Option{
 			adapter.WithProvider(prv),
 			adapter.WithHistory(mem),
 			adapter.WithSystemPrompt(sysPrompt),
 			adapter.WithEnrichers(enrichers),
-		)
+		}
+		for _, r := range resolvers {
+			opts = append(opts, adapter.WithResolver(r))
+		}
+
+		engine := adapter.New(opts...)
 
 		var modelName string
 		if m, ok := selectedCfg.Config["model"].(string); ok {

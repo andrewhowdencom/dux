@@ -58,4 +58,4 @@ To fully operate as an automated marketing department, this agent requires capab
 
 - **Brand Voice Tuning**: While system prompts help, achieving true "brand voice" usually requires extensive Few-Shot prompting, embeddings of past successful blog posts, or fine-tuning, none of which are seamlessly supported by Dux natively yet.
 - **Multi-Modal Generation**: Marketing often requires generating or manipulating images alongside text. Dux is strictly text-based and cannot interface with image generation providers (e.g., Midjourney, DALL-E) or output rich media.
-- **Document Ingestion**: You cannot simply pass Dux a link to an internal product requirements document (PRD) and say "write a blog post about this." We lack URL scraping and PDF document parsing.
+- **Document Ingestion (RESOLVED)**: We can now resolve URL scraping, API fetching, or basic PDF reading natively by writing modular CLI tools or programmatic go functions and mapping them directly to the `adapter.Engine`'s ToolResolver!

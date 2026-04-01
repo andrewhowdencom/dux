@@ -4,11 +4,14 @@ import (
 	"fmt"
 
 	"github.com/andrewhowdencom/dux/internal/config"
+	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/ollama"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/openai"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
+	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
+	timetool "github.com/andrewhowdencom/dux/pkg/llm/tool/time"
 )
 
 // newProviderFromConfig maps a generic config definition to a concrete LLM Provider constructor.
@@ -47,3 +50,27 @@ func newEnrichersFromConfig(cfgs []config.Enricher) ([]enrich.Enricher, error) {
 
 	return results, nil
 }
+
+// newResolversFromConfig builds an array of tool resolvers from string representations.
+func newResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
+	var results []llm.ToolResolver
+
+	// For standard configuration strings, wrap the tool inside a static resolver
+	var staticTools []llm.Tool
+
+	for _, c := range cfgs {
+		switch c {
+		case "time":
+			staticTools = append(staticTools, timetool.New())
+		default:
+			return nil, fmt.Errorf("unknown tool name: %s", c)
+		}
+	}
+
+	if len(staticTools) > 0 {
+		results = append(results, static_resolver.New(staticTools...))
+	}
+
+	return results, nil
+}
+

@@ -52,4 +52,4 @@ Currently, using Dux for wholesale codebase migration is entirely manual and ted
 
 - **Filesystem Access**: Dux cannot autonomously read a directory tree, identify deprecated code, and write the diffs back to the filesystem.
 - **Context Windows & Project Graph**: We lack the ability to supply the entire project's Abstract Syntax Tree (AST) or relevant import graphs to the LLM. The agent lacks awareness of how a change in `file_a.go` affects `file_b.go`.
-- **Validation Loop**: A true migration agent should be able to run `go test` (or equivalent), read the compilation errors, and autonomously fix its own mistakes until the build passes.
+- **Validation Loop (RESOLVED)**: Thanks to native `adapter.Engine` tool recursion and the `ToolMiddleware` gating architecture, a sequence can now natively run `go test` as a tool and securely intercept calls to read compilation errors, allowing Dux to iteratively fix its own mistakes autonomously!
