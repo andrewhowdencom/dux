@@ -16,6 +16,10 @@
         requirements:
           supervision: false
           sandbox: false
+      - name: "bash"
+        enabled: true
+        requirements:
+          supervision: true
     enrichers:
       - type: "os"
 

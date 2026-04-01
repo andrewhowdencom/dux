@@ -249,6 +249,16 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.messages[lastIdx].thinking += string(part)
 			case llm.ToolRequestPart:
 				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("Tool Call: %s(%v)", part.Name, part.Args))
+			case llm.ToolResultPart:
+				resStr := fmt.Sprintf("%v", part.Result) // Format carefully
+				if len(resStr) > 500 {
+					resStr = resStr[:500] + " ... (truncated)"
+				}
+				if part.IsError {
+					m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Error (%s): %s", part.Name, resStr))
+				} else {
+					m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Result (%s): %s", part.Name, strings.ReplaceAll(resStr, "\n", "\\n")))
+				}
 			case llm.ToolDefinitionPart:
 				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("Schema: %s", part.Name))
 			}

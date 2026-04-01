@@ -11,6 +11,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/openai"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
 	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
+	bashtool "github.com/andrewhowdencom/dux/pkg/llm/tool/bash"
 	timetool "github.com/andrewhowdencom/dux/pkg/llm/tool/time"
 )
 
@@ -62,6 +63,8 @@ func newResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
 		switch c {
 		case "time":
 			staticTools = append(staticTools, timetool.New())
+		case "bash":
+			staticTools = append(staticTools, bashtool.New())
 		default:
 			return nil, fmt.Errorf("unknown tool name: %s", c)
 		}
