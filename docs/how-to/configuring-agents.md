@@ -13,23 +13,31 @@ By default, `dux` will look for an agents specification file located at `$XDG_CO
 An agents file uses a YAML array of agent definitions. You can start by checking the `agents.example.yaml` file available in the root repository. Below is a sample configuration:
 
 ```yaml
-- name: "devops"
+- name: "qa"
   provider: "ollama-local"
-  system_prompt: |
-    You are an expert DevOps engineer. Always output production-ready configurations
-    and explain the security implications of your advice.
+  context:
+    system: |
+      You are a specialized Question & Answer agent.
+      Respond strictly to the prompt with complete, accurate answers.
+      Always incorporate the injected enrichers as part of your source truth context.
+    enrichers:
+      - type: "time"
+      - type: "os"
 
 - name: "writer"
   provider: "openai"
-  system_prompt: |
-    You are a technical writer conforming to the Diátaxis documentation framework.
+  context:
+    system: |
+      You are a technical writer conforming to the Diátaxis documentation framework.
 ```
 
 ### Agent Fields
 
 *   `name` (string): The identifier you will use in the CLI.
 *   `provider` (string): The LLM Provider ID from your core configuration (e.g., `config.yaml` `llm.providers` array).
-*   `system_prompt` (string): The initial prompt injected seamlessly at the start of your chat instance to guide the LLM's behavior.
+*   `context` (object): Options for defining dynamic and static inputs.
+    *   `system` (string): The initial prompt injected seamlessly at the start of your chat instance.
+    *   `enrichers` (array): A list of dynamic context injection tools (e.g. `type: "time"` or `type: "os"`).
 
 ## Using an Agent in the CLI
 

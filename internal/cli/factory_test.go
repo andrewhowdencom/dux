@@ -1,4 +1,4 @@
-package enrich
+package cli
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/andrewhowdencom/dux/internal/config"
 )
 
-func TestNewFromConfig(t *testing.T) {
+func TestNewEnrichersFromConfig(t *testing.T) {
 	cfgs := []config.Enricher{
 		{Type: "time"},
 		{Type: "os"},
@@ -15,7 +15,7 @@ func TestNewFromConfig(t *testing.T) {
 		{Type: "guard_rail", Text: "Do not mention unicorns."},
 	}
 
-	enrichers, err := NewFromConfig(cfgs)
+	enrichers, err := newEnrichersFromConfig(cfgs)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,12 +64,12 @@ func TestNewFromConfig(t *testing.T) {
 	}
 }
 
-func TestNewFromConfigUnknownType(t *testing.T) {
+func TestNewEnrichersFromConfigUnknownType(t *testing.T) {
 	cfgs := []config.Enricher{
 		{Type: "invalid_mystery_type"},
 	}
 
-	_, err := NewFromConfig(cfgs)
+	_, err := newEnrichersFromConfig(cfgs)
 	if err == nil {
 		t.Fatalf("expected error for invalid type, got nil")
 	}

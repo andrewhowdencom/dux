@@ -18,6 +18,8 @@ type Enricher interface {
 // timeEnricher provides the current system time dynamically.
 type timeEnricher struct{}
 
+func NewTime() Enricher { return &timeEnricher{} }
+
 func (e *timeEnricher) Type() string { return "time" }
 func (e *timeEnricher) Enrich(ctx context.Context) (string, error) {
 	return fmt.Sprintf("<enrichment type=\"time\">\nCurrent Time: %s\n</enrichment>", time.Now().Format(time.RFC3339)), nil
@@ -25,6 +27,8 @@ func (e *timeEnricher) Enrich(ctx context.Context) (string, error) {
 
 // osEnricher provides the basic operating system information dynamically.
 type osEnricher struct{}
+
+func NewOS() Enricher { return &osEnricher{} }
 
 func (e *osEnricher) Type() string { return "os" }
 func (e *osEnricher) Enrich(ctx context.Context) (string, error) {
@@ -36,6 +40,8 @@ type promptEnricher struct {
 	text string
 }
 
+func NewPrompt(text string) Enricher { return &promptEnricher{text: text} }
+
 func (e *promptEnricher) Type() string { return "prompt" }
 func (e *promptEnricher) Enrich(ctx context.Context) (string, error) {
 	return fmt.Sprintf("<enrichment type=\"prompt\">\n%s\n</enrichment>", e.text), nil
@@ -45,6 +51,8 @@ func (e *promptEnricher) Enrich(ctx context.Context) (string, error) {
 type guardRailEnricher struct {
 	text string
 }
+
+func NewGuardRail(text string) Enricher { return &guardRailEnricher{text: text} }
 
 func (e *guardRailEnricher) Type() string { return "guard_rail" }
 func (e *guardRailEnricher) Enrich(ctx context.Context) (string, error) {

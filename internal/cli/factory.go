@@ -1,0 +1,49 @@
+package cli
+
+import (
+	"fmt"
+
+	"github.com/andrewhowdencom/dux/internal/config"
+	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider/ollama"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider/openai"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
+)
+
+// newProviderFromConfig maps a generic config definition to a concrete LLM Provider constructor.
+func newProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error) {
+	switch cfg.Type {
+	case "static":
+		return static.New(cfg.Config)
+	case "ollama":
+		return ollama.New(cfg.Config)
+	case "openai", "litellm":
+		return openai.New(cfg.Config)
+	default:
+		return nil, fmt.Errorf("unknown or unsupported provider type: %q (id: %q)", cfg.Type, cfg.ID)
+	}
+}
+
+// newEnrichersFromConfig builds an array of enrichers from raw agent configuration.
+func newEnrichersFromConfig(cfgs []config.Enricher) ([]enrich.Enricher, error) {
+	var results []enrich.Enricher
+
+	for _, c := range cfgs {
+		switch c.Type {
+		case "time":
+			results = append(results, enrich.NewTime())
+		case "os":
+			results = append(results, enrich.NewOS())
+		case "prompt":
+			results = append(results, enrich.NewPrompt(c.Text))
+		case "guard_rail":
+			results = append(results, enrich.NewGuardRail(c.Text))
+		default:
+			// Returning an error ensures configuration typos are caught.
+			return nil, fmt.Errorf("unknown enricher type: %s", c.Type)
+		}
+	}
+
+	return results, nil
+}

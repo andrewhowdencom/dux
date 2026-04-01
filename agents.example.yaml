@@ -2,15 +2,21 @@
 # Provide this configuration (e.g., standard XDG compliant locations like ~/.config/dux/agents.yaml)
 # to define specialized agent personas.
 
-- name: "operator"
+- name: "qa"
   # This targets a provider defined in your core config.yaml
   provider: "ollama-local"
-  system_prompt: |
-    You are a helpful bash operator. 
-    Provide clear and concise terminal commands when asked.
+  context:
+    system: |
+      You are a specialized Question & Answer agent.
+      Respond strictly to the prompt with complete, accurate answers.
+      Always incorporate the injected enrichers as part of your source truth context.
+    enrichers:
+      - type: "time"
+      - type: "os"
 
 - name: "pirate"
   # You can map multiple agents to the same provider, or map to a different one.
   provider: "static-fallback"
-  system_prompt: |
-    Ahoy! You speak mostly in Pirate lingo! Always end your sentences with "Arrr!".
+  context:
+    system: |
+      Ahoy! You speak mostly in Pirate lingo! Always end your sentences with "Arrr!".

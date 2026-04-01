@@ -12,14 +12,17 @@ type Provider struct {
 	responses []llm.Message
 }
 
-// New creates a static Provider.
 func New(config map[string]interface{}) (provider.Provider, error) {
-	// Future config maps can decode here! For now, generic fallback:
+	responseText := "I am a static LLM. I'm operating within the generic Provider pipeline!"
+	if text, ok := config["text"].(string); ok {
+		responseText = text
+	}
+
 	responses := []llm.Message{
 		{
 			SessionID: "static",
 			Identity:  llm.Identity{Role: "assistant"},
-			Parts:     []llm.Part{llm.TextPart("I am a static LLM. I'm operating within the generic Provider pipeline!")},
+			Parts:     []llm.Part{llm.TextPart(responseText)},
 		},
 	}
 	return &Provider{responses: responses}, nil
