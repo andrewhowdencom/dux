@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/wordwrap"
 )
 
 var (
@@ -327,7 +328,8 @@ func (m *uiModel) updateViewport() {
 		b.WriteString(fmt.Sprintf("%s:\n", roleTitle))
 
 		if msg.thinking != "" {
-			b.WriteString(thinkingStyle.Render("Thinking:\n" + msg.thinking))
+			wrappedThinking := wordwrap.String("Thinking:\n"+msg.thinking, m.viewport.Width)
+			b.WriteString(thinkingStyle.Render(wrappedThinking))
 			b.WriteString("\n\n")
 		}
 
