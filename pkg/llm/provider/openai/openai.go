@@ -109,8 +109,9 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 						_ = json.Unmarshal([]byte(b.Arguments), &args)
 					}
 					out <- llm.ToolRequestPart{
-						Name: b.Name,
-						Args: args,
+						ToolID: b.ID,
+						Name:   b.Name,
+						Args:   args,
 					}
 				}
 				return
