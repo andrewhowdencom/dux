@@ -16,6 +16,7 @@ type Enricher struct {
 // AgentContext defines dynamic and static context to configure an agent's memory before interaction.
 type AgentContext struct {
 	Enrichers []Enricher `yaml:"enrichers,omitempty"`
+	Tools     []string   `yaml:"tools,omitempty"`
 	System    string     `yaml:"system,omitempty"`
 }
 

@@ -52,7 +52,7 @@ func TestEngine_SinglePass(t *testing.T) {
 	
 	provider := &MockProvider{
 		stream: []llm.Part{
-			llm.ToolRequestPart{Name: "GetWeather", Args: map[string]interface{}{"location": "Tokyo"}},
+			llm.TextPart("Mocked single pass text"),
 		},
 	}
 
@@ -81,7 +81,7 @@ func TestEngine_SinglePass(t *testing.T) {
 		t.Fatalf("expected 1 messages emitted, got %d", len(received))
 	}
 
-	if _, ok := received[0].Parts[0].(llm.ToolRequestPart); !ok {
-		t.Errorf("expected emitted part to be ToolRequestPart, got %T", received[0].Parts[0])
+	if _, ok := received[0].Parts[0].(llm.TextPart); !ok {
+		t.Errorf("expected emitted part to be TextPart, got %T", received[0].Parts[0])
 	}
 }

@@ -77,6 +77,6 @@ dux chat --agent support-assistant
 
 To fully realize a Customer Support Agent, Dux needs further architectural investments to overcome these gaps:
 
-- **RAG (Retrieval-Augmented Generation)**: Dux does not currently support connecting to vector databases or local knowledge bases. The agent can only answer questions based on its foundational training data, making it unsuitable for highly specific, proprietary support queries.
+- **RAG (Retrieval-Augmented Generation) (RESOLVED)**: `adapter.Engine` now natively loops tool calls. By injecting a simple custom Go `ToolResolver` equipped with a vector DB search integration, Dux can actively query local knowledge bases and seamlessly retrieve context necessary for complex support queries without any external orchestrators!
 - **Conversation State Persistence**: While in-memory history is tracked during a session, Dux cannot recall past support tickets for a specific user across separate sessions.
 - **Tone and Guardrails**: There is no built-in mechanism to enforce guardrails (e.g., preventing the AI from making legal promises or hallucinating refunds) outside of simple zero-shot prompting in the system file.
