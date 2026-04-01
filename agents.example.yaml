@@ -10,8 +10,9 @@
       You are a specialized Question & Answer agent.
       Respond strictly to the prompt with complete, accurate answers.
       Always incorporate the injected enrichers as part of your source truth context.
+    tools:
+      - "time"
     enrichers:
-      - type: "time"
       - type: "os"
 
 - name: "pirate"

@@ -13,6 +13,7 @@ const (
 	TypeReasoning      PartType = "reasoning"
 	TypeToolCall       PartType = "tool_call"
 	TypeToolDefinition PartType = "tool_definition"
+	TypeToolResult     PartType = "tool_result"
 )
 
 // Part defines an abstract section of an LLM generation.
@@ -72,6 +73,16 @@ type ToolDefinitionPart struct {
 }
 
 func (t ToolDefinitionPart) Type() PartType { return TypeToolDefinition }
+
+// ToolResultPart carries the output of a locally or remotely executed tool.
+type ToolResultPart struct {
+	ToolID  string      // Maps back to the original request (if provider supports it)
+	Name    string      // Which tool this answers
+	Result  interface{} // Struct/Map that marshals cleanly to JSON
+	IsError bool        // Indicates if the tool threw a business-logic error
+}
+
+func (t ToolResultPart) Type() PartType { return TypeToolResult }
 
 // Identity represents the exact source and nature of a message.
 type Identity struct {

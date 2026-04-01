@@ -23,8 +23,9 @@ In your `agents.yaml` file, define the support agent profile. You can also utili
       You are a helpful, empathetic Customer Support Assistant.
       Address the user's issue directly and concisely. If you do not know the answer,
       apologize and recommend they contact a human agent.
+    tools:
+      - "time"
     enrichers:
-      - type: "time"
       - type: "os"
 ```
 
@@ -34,20 +35,34 @@ If you are embedding this support workflow inside an existing Go application, yo
 
 ```go
 import (
+	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/time"
 )
 
+// Configure core execution engine
 engine := adapter.New(
 	adapter.WithProvider(prv), // Pre-configured provider
 	adapter.WithHistory(history.NewInMemory()),
 	adapter.WithSystemPrompt("You are a helpful, empathetic Customer Support Assistant..."),
 	adapter.WithEnrichers([]enrich.Enricher{
-		enrich.NewTime(),
 		enrich.NewOS(),
 	}),
 )
+
+// Intercept tools via the SessionHandler loop
+handler := llm.NewSessionHandler(
+	engine, 
+	receiver, 
+	sender,
+	llm.WithResolver(static.New(
+		time.New(),
+	)),
+)
+
 ```
 
 ## Step 2: Interacting with the Agent

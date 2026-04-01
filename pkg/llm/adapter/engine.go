@@ -2,15 +2,12 @@ package adapter
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider"
-	"github.com/andrewhowdencom/dux/pkg/llm/tool"
 )
 
 // Engine orchestrates the convergence loop between the LLM provider,
@@ -18,7 +15,6 @@ import (
 type Engine struct {
 	history      history.History
 	provider     provider.Provider
-	registry     tool.Registry
 	systemPrompt string
 	enrichers    []enrich.Enricher
 }
@@ -40,12 +36,7 @@ func WithProvider(p provider.Provider) Option {
 	}
 }
 
-// WithRegistry sets the tool registry available to the engine.
-func WithRegistry(r tool.Registry) Option {
-	return func(e *Engine) {
-		e.registry = r
-	}
-}
+
 
 // WithSystemPrompt sets an overarching system prompt injected dynamically at stream time.
 func WithSystemPrompt(prompt string) Option {
@@ -84,163 +75,84 @@ func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan l
 	go func() {
 		defer close(out)
 
-		for {
-			// 1. Fetch current context
-			var msgs []llm.Message
-			if e.history != nil {
-				var err error
-				msgs, err = e.history.GetMessages(ctx, inputMessage.SessionID)
-				if err != nil {
-					e.sendError(ctx, out, err, inputMessage.SessionID)
-					return
-				}
-			} else {
-				// Fallback if no history is configured
-				msgs = []llm.Message{inputMessage}
-			}
-
-			if e.systemPrompt != "" {
-				systemMsg := llm.Message{
-					SessionID: inputMessage.SessionID,
-					Identity:  llm.Identity{Role: "system"},
-					Parts:     []llm.Part{llm.TextPart(e.systemPrompt)},
-				}
-				msgs = append([]llm.Message{systemMsg}, msgs...)
-			}
-
-			// 1a. Evaluate dynamic enrichers if configured
-			if len(e.enrichers) > 0 {
-				var enrichmentData string
-				for _, en := range e.enrichers {
-					res, err := en.Enrich(ctx)
-					if err != nil {
-						slog.Debug("failed to evaluate enricher", "type", en.Type(), "error", err)
-						continue
-					}
-					if res != "" {
-						enrichmentData += res + "\n"
-					}
-				}
-				if enrichmentData != "" {
-					enrichMsg := llm.Message{
-						SessionID: inputMessage.SessionID,
-						Identity:  llm.Identity{Role: "system"},
-						Parts:     []llm.Part{llm.TextPart(enrichmentData)},
-					}
-					
-					lastIdx := len(msgs) - 1
-					if lastIdx >= 0 {
-						// Insert immediately before the last user message
-						msgs = append(msgs[:lastIdx], append([]llm.Message{enrichMsg}, msgs[lastIdx:]...)...)
-					} else {
-						msgs = append(msgs, enrichMsg)
-					}
-				}
-			}
-
-			// 2. Inject tool definitions
-			if e.registry != nil {
-				tools := e.registry.GetDefinitions()
-				if len(tools) > 0 {
-					msgs = append(msgs, llm.Message{
-						SessionID: inputMessage.SessionID,
-						Identity:  llm.Identity{Role: "system"},
-						Parts:     tools,
-					})
-				}
-			}
-
-			// 3. Call Provider
-			if e.provider == nil {
-				// No provider configured, just exit without generating
-				return
-			}
-			partStream, err := e.provider.GenerateStream(ctx, msgs)
+		// 1. Fetch current context
+		var msgs []llm.Message
+		if e.history != nil {
+			var err error
+			msgs, err = e.history.GetMessages(ctx, inputMessage.SessionID)
 			if err != nil {
 				e.sendError(ctx, out, err, inputMessage.SessionID)
 				return
 			}
+		} else {
+			// Fallback if no history is configured
+			msgs = []llm.Message{inputMessage}
+		}
 
-			var pendingTools []llm.ToolRequestPart
-
-			// 4. Over the stream
-			for part := range partStream {
-				switch p := part.(type) {
-				case llm.TextPart, llm.ReasoningPart:
-					msg := llm.Message{
-						SessionID: inputMessage.SessionID,
-						Identity:  llm.Identity{Role: "assistant"},
-						Parts:     []llm.Part{p},
-					}
-					if e.history != nil {
-						if err := e.history.Append(ctx, msg.SessionID, msg); err != nil {
-							e.sendError(ctx, out, err, msg.SessionID)
-							return
-						}
-					}
-					e.safeSend(ctx, out, msg)
-
-				case llm.ToolRequestPart:
-					pendingTools = append(pendingTools, p)
-					msg := llm.Message{
-						SessionID: inputMessage.SessionID,
-						Identity:  llm.Identity{Role: "assistant"},
-						Parts:     []llm.Part{p},
-					}
-					if e.history != nil {
-						if err := e.history.Append(ctx, msg.SessionID, msg); err != nil {
-							e.sendError(ctx, out, err, msg.SessionID)
-							return
-						}
-					}
-					e.safeSend(ctx, out, msg)
-				}
+		if e.systemPrompt != "" {
+			systemMsg := llm.Message{
+				SessionID: inputMessage.SessionID,
+				Identity:  llm.Identity{Role: "system"},
+				Parts:     []llm.Part{llm.TextPart(e.systemPrompt)},
 			}
+			msgs = append([]llm.Message{systemMsg}, msgs...)
+		}
 
-			// 5. If no tools were requested, the loop ends (convergence reached).
-			if len(pendingTools) == 0 {
-				break
-			}
-
-			// 6. Execute tools and append results
-			for _, tq := range pendingTools {
-				var execResult interface{}
-				var err error
-
-				if e.registry != nil {
-					execResult, err = e.registry.Execute(ctx, tq.Name, tq.Args)
-				} else {
-					err = fmt.Errorf("no tool registry configured")
-				}
-
-				var resultText string
+		// 1a. Evaluate dynamic enrichers if configured
+		if len(e.enrichers) > 0 {
+			var enrichmentData string
+			for _, en := range e.enrichers {
+				res, err := en.Enrich(ctx)
 				if err != nil {
-					resultText = "error executing tool: " + err.Error()
-				} else {
-					if str, ok := execResult.(string); ok {
-						resultText = str
-					} else {
-						if b, marshalErr := json.Marshal(execResult); marshalErr == nil {
-							resultText = string(b)
-						} else {
-							resultText = "tool executed successfully"
-						}
-					}
+					slog.Debug("failed to evaluate enricher", "type", en.Type(), "error", err)
+					continue
 				}
-
-				if e.history != nil {
-					toolResMsg := llm.Message{
-						SessionID: inputMessage.SessionID,
-						Identity:  llm.Identity{Role: "tool", Name: tq.Name},
-						Parts:     []llm.Part{llm.TextPart(resultText)},
-					}
-					if err := e.history.Append(ctx, inputMessage.SessionID, toolResMsg); err != nil {
-						e.sendError(ctx, out, err, inputMessage.SessionID)
-						return
-					}
+				if res != "" {
+					enrichmentData += res + "\n"
 				}
 			}
-			// After appending tool execution results, loop will repeat!
+			if enrichmentData != "" {
+				enrichMsg := llm.Message{
+					SessionID: inputMessage.SessionID,
+					Identity:  llm.Identity{Role: "system"},
+					Parts:     []llm.Part{llm.TextPart(enrichmentData)},
+				}
+				
+				lastIdx := len(msgs) - 1
+				if lastIdx >= 0 {
+					// Insert immediately before the last user message
+					msgs = append(msgs[:lastIdx], append([]llm.Message{enrichMsg}, msgs[lastIdx:]...)...)
+				} else {
+					msgs = append(msgs, enrichMsg)
+				}
+			}
+		}
+
+		// 2. Call Provider
+		if e.provider == nil {
+			// No provider configured, just exit without generating
+			return
+		}
+		partStream, err := e.provider.GenerateStream(ctx, msgs)
+		if err != nil {
+			e.sendError(ctx, out, err, inputMessage.SessionID)
+			return
+		}
+
+		// 3. Over the stream
+		for part := range partStream {
+			msg := llm.Message{
+				SessionID: inputMessage.SessionID,
+				Identity:  llm.Identity{Role: "assistant"},
+				Parts:     []llm.Part{part},
+			}
+			if e.history != nil {
+				if err := e.history.Append(ctx, msg.SessionID, msg); err != nil {
+					e.sendError(ctx, out, err, msg.SessionID)
+					return
+				}
+			}
+			e.safeSend(ctx, out, msg)
 		}
 	}()
 
