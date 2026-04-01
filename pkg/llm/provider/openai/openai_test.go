@@ -1,7 +1,10 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
@@ -109,5 +112,59 @@ func TestBuildOpenAIRequest(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestGenerateStream_ToolID_Preservation(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		// Send a single SSE chunk containing the tool_call_id
+		chunk := `data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"expected_tool_id","function":{"name":"test_tool","arguments":"{}"}}]}}]}` + "\n\n"
+		done := "data: [DONE]\n\n"
+
+		_, _ = w.Write([]byte(chunk))
+		_, _ = w.Write([]byte(done))
+	}))
+	defer ts.Close()
+
+	cfg := map[string]interface{}{
+		"base_url": ts.URL,
+		"api_key":  "test_key",
+		"model":    "gpt-4o",
+	}
+
+	prov, err := New(cfg)
+	if err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+
+	ctx := context.Background()
+	stream, err := prov.GenerateStream(ctx, []llm.Message{
+		{
+			Identity: llm.Identity{Role: "user"},
+			Parts:    []llm.Part{llm.TextPart("Hello")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateStream failed: %v", err)
+	}
+
+	var foundToolID string
+	var foundToolName string
+	for part := range stream {
+		if req, ok := part.(llm.ToolRequestPart); ok {
+			foundToolID = req.ToolID
+			foundToolName = req.Name
+		}
+	}
+
+	if foundToolID != "expected_tool_id" {
+		t.Errorf("Expected ToolID %q from stream chunk, got %q", "expected_tool_id", foundToolID)
+	}
+	if foundToolName != "test_tool" {
+		t.Errorf("Expected Tool Name %q, got %q", "test_tool", foundToolName)
 	}
 }
