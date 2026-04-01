@@ -12,7 +12,6 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
-	"github.com/andrewhowdencom/dux/pkg/llm/provider/factory"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -63,7 +62,7 @@ var chatCmd = &cobra.Command{
 			finalProvider = agt.Provider
 			if agt.Context != nil {
 				sysPrompt = agt.Context.System
-				en, err := enrich.NewFromConfig(agt.Context.Enrichers)
+				en, err := newEnrichersFromConfig(agt.Context.Enrichers)
 				if err != nil {
 					return fmt.Errorf("failed to initialize enrichers for agent %q: %w", agentName, err)
 				}
@@ -76,7 +75,7 @@ var chatCmd = &cobra.Command{
 			return err
 		}
 
-		prv, err := factory.New(selectedCfg)
+		prv, err := newProviderFromConfig(selectedCfg)
 		if err != nil {
 			return fmt.Errorf("failed to initialize provider %q: %w", selectedCfg.ID, err)
 		}

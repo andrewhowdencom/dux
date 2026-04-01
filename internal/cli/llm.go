@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"github.com/andrewhowdencom/dux/internal/config"
-	"github.com/andrewhowdencom/dux/pkg/llm/provider/factory"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +35,7 @@ var llmModelsListCmd = &cobra.Command{
 			return err
 		}
 
-		prv, err := factory.New(selectedCfg)
+		prv, err := newProviderFromConfig(selectedCfg)
 		if err != nil {
 			return fmt.Errorf("failed to initialize provider %q: %w", selectedCfg.ID, err)
 		}
