@@ -55,3 +55,16 @@
           url: "http://example.com/sse"
           headers:
             "Authorization": "Bearer token123"
+
+- name: "github_assistant"
+  provider: "openai"
+  context:
+    system: "You are a GitHub interaction bot. You can create PRs, list issues, and comment."
+    tools:
+      - name: "github"
+        enabled: true
+        mcp:
+          command: "npx"
+          args: ["-y", "@modelcontextprotocol/server-github"]
+          env:
+            GITHUB_PERSONAL_ACCESS_TOKEN: "your-github-pat-here"
