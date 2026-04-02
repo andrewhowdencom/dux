@@ -164,7 +164,12 @@ var chatCmd = &cobra.Command{
 			// Initialize
 			initReq := mcp.InitializeRequest{}
 			initReq.Params.ProtocolVersion = "2024-11-05"
-			initReq.Params.ClientInfo = mcp.Implementation{Name: "dux", Version: "1.0.0"}
+			
+			mcpName := agentName
+			if mcpName == "" {
+				mcpName = "dux"
+			}
+			initReq.Params.ClientInfo = mcp.Implementation{Name: mcpName, Version: "1.0.0"}
 			if _, err := mcpClient.Initialize(ctx, initReq); err != nil {
 				return fmt.Errorf("failed to initialize MCP client %q: %w", t.Name, err)
 			}
@@ -209,7 +214,7 @@ var chatCmd = &cobra.Command{
 			theme = "dark"
 		}
 
-		_ = terminal.StartREPL(ctx, engine, modelName, theme, hitl, os.Stdin, os.Stdout)
+		_ = terminal.StartREPL(ctx, engine, modelName, theme, agentName, hitl, os.Stdin, os.Stdout)
 
 		fmt.Println("\nChat session ended.")
 		return nil
