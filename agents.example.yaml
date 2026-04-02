@@ -38,3 +38,20 @@
   context:
     system: |
       Ahoy! You speak mostly in Pirate lingo! Always end your sentences with "Arrr!".
+
+- name: "filesystem"
+  provider: "ollama-local"
+  context:
+    system: "Use your provided tools to read the local filesystem"
+    tools:
+      - name: "local_files"
+        enabled: true
+        mcp:
+          command: "npx"
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+      - name: "public_weather"
+        enabled: true
+        mcp:
+          url: "http://example.com/sse"
+          headers:
+            "Authorization": "Bearer token123"
