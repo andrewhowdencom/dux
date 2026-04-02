@@ -39,6 +39,7 @@ type uiModel struct {
 	engine     llm.Engine
 	modelName  string
 	theme      string
+	agentName  string
 
 	viewport viewport.Model
 	textarea textarea.Model
@@ -83,16 +84,21 @@ func waitForHITL(ch chan ToolApprovalRequestMsg) tea.Cmd {
 	}
 }
 
-func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme string, hitl *BubbleTeaHITL) uiModel {
+func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL) uiModel {
+	name := agentName
+	if name == "" {
+		name = "Dux"
+	}
+
 	ta := textarea.New()
-	ta.Placeholder = "Ask Dux a question..."
+	ta.Placeholder = fmt.Sprintf("Ask %s a question...", name)
 	ta.Focus()
 	ta.Prompt = "┃ "
 	ta.CharLimit = 10000
 	ta.SetHeight(3)
 
 	vp := viewport.New(80, 20)
-	vp.SetContent("Welcome to Dux Chat! Type a message and press Enter.")
+	vp.SetContent(fmt.Sprintf("Welcome to %s Chat! Type a message and press Enter.", name))
 
 	if theme == "auto" || theme == "" {
 		theme = "dark"
@@ -118,6 +124,7 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme string,
 		engine:    engine,
 		modelName: modelName,
 		theme:     theme,
+		agentName: name,
 		textarea:  ta,
 		viewport:  vp,
 		spinner:   s,
@@ -312,7 +319,7 @@ func (m *uiModel) updateViewport() {
 		case "user":
 			roleTitle = userStyle.Render("User")
 		case "assistant":
-			roleTitle = assistantStyle.Render(fmt.Sprintf("Dux (%s)", m.modelName))
+			roleTitle = assistantStyle.Render(fmt.Sprintf("%s (%s)", m.agentName, m.modelName))
 		default:
 			title := msg.role
 			if len(title) > 0 {
@@ -387,10 +394,10 @@ func (m uiModel) View() string {
 
 	if m.isStreaming {
 		m.textarea.Prompt = m.spinner.View() + " "
-		m.textarea.Placeholder = "Dux is thinking..."
+		m.textarea.Placeholder = fmt.Sprintf("%s is thinking...", m.agentName)
 	} else {
 		m.textarea.Prompt = "┃ "
-		m.textarea.Placeholder = "Ask Dux a question..."
+		m.textarea.Placeholder = fmt.Sprintf("Ask %s a question...", m.agentName)
 	}
 
 	var inputView string
@@ -411,9 +418,9 @@ func (m uiModel) View() string {
 }
 
 // StartREPL begins a synchronous interactive loop wrapping the engine stream.
-func StartREPL(ctx context.Context, engine llm.Engine, modelName, theme string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer) error {
+func StartREPL(ctx context.Context, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer) error {
 	p := tea.NewProgram(
-		newUIModel(ctx, engine, modelName, theme, hitl),
+		newUIModel(ctx, engine, modelName, theme, agentName, hitl),
 		tea.WithAltScreen(),
 		tea.WithInput(in),
 		tea.WithOutput(out),
