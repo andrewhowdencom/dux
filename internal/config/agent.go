@@ -22,10 +22,12 @@ type ToolRequirements struct {
 }
 
 // ToolConfig maps a specific tool and its deployment requirements.
+// A tool can be either a locally built-in tool or an external MCP server.
 type ToolConfig struct {
 	Name         string           `yaml:"name"`
 	Enabled      bool             `yaml:"enabled"`
 	Requirements ToolRequirements `yaml:"requirements,omitempty"`
+	MCP          *MCPServer       `yaml:"mcp,omitempty"`
 }
 
 // AgentContext defines dynamic and static context to configure an agent's memory before interaction.
@@ -33,6 +35,16 @@ type AgentContext struct {
 	Enrichers []Enricher `yaml:"enrichers,omitempty"`
 	Tools     []ToolConfig `yaml:"tools,omitempty"`
 	System    string       `yaml:"system,omitempty"`
+}
+
+// MCPServer defines configuration for an external Model Context Protocol server.
+// It supports either stdio (Command/Args) or SSE (URL) transports.
+type MCPServer struct {
+	Command string            `yaml:"command,omitempty"`
+	Args    []string          `yaml:"args,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
+	URL     string            `yaml:"url,omitempty"`
+	Headers map[string]string `yaml:"headers,omitempty"`
 }
 
 // Agent defines a distinct interactive role combining a provider and dynamic context.

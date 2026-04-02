@@ -13,7 +13,11 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
+	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -55,16 +59,11 @@ var chatCmd = &cobra.Command{
 
 		globalTools := config.LoadGlobalTools()
 
+		toolMap := make(map[string]config.ToolConfig)
 		requiresSupervision := make(map[string]bool)
-		toolEnabled := make(map[string]bool)
 
 		for _, t := range globalTools {
-			toolEnabled[t.Name] = t.Enabled
-			if t.Requirements.Supervision != nil {
-				requiresSupervision[t.Name] = *t.Requirements.Supervision
-			} else {
-				requiresSupervision[t.Name] = true
-			}
+			toolMap[t.Name] = t
 		}
 
 		if agentName != "" {
@@ -86,26 +85,35 @@ var chatCmd = &cobra.Command{
 				enrichers = en
 
 				for _, t := range agt.Context.Tools {
-					toolEnabled[t.Name] = t.Enabled
-					if t.Requirements.Supervision != nil {
-						requiresSupervision[t.Name] = *t.Requirements.Supervision
-					} else if _, exists := requiresSupervision[t.Name]; !exists {
-						requiresSupervision[t.Name] = true
-					}
+					toolMap[t.Name] = t
 				}
 			}
 		}
 
-		var enabledToolNames []string
-		for name, enabled := range toolEnabled {
-			if enabled {
-				enabledToolNames = append(enabledToolNames, name)
+		var nativeToolNames []string
+		var mcpConfigs []config.ToolConfig
+
+		for name, t := range toolMap {
+			if !t.Enabled {
+				continue
+			}
+
+			if t.Requirements.Supervision != nil {
+				requiresSupervision[name] = *t.Requirements.Supervision
+			} else {
+				requiresSupervision[name] = true
+			}
+
+			if t.MCP != nil {
+				mcpConfigs = append(mcpConfigs, t)
+			} else {
+				nativeToolNames = append(nativeToolNames, name)
 			}
 		}
 
-		res, err := newResolversFromConfig(enabledToolNames)
+		res, err := newResolversFromConfig(nativeToolNames)
 		if err != nil {
-			return fmt.Errorf("failed to initialize tools: %w", err)
+			return fmt.Errorf("failed to initialize native tools: %w", err)
 		}
 		resolvers = res
 
@@ -117,6 +125,56 @@ var chatCmd = &cobra.Command{
 		prv, err := newProviderFromConfig(selectedCfg)
 		if err != nil {
 			return fmt.Errorf("failed to initialize provider %q: %w", selectedCfg.ID, err)
+		}
+
+		// Initialize MCP Tool Resolvers
+		var mcpClients []*client.Client
+		defer func() {
+			for _, c := range mcpClients {
+				_ = c.Close()
+			}
+		}()
+
+		for _, t := range mcpConfigs {
+			var mcpClient *client.Client
+			var clientErr error
+			s := t.MCP
+
+			if s.Command != "" {
+				env := make([]string, 0, len(s.Env))
+				for k, v := range s.Env {
+					env = append(env, fmt.Sprintf("%s=%s", k, v))
+				}
+				mcpClient, clientErr = client.NewStdioMCPClient(s.Command, env, s.Args...)
+			} else if s.URL != "" {
+				var opts []transport.ClientOption
+				if s.Headers != nil {
+					opts = append(opts, transport.WithHeaders(s.Headers))
+				}
+				mcpClient, clientErr = client.NewSSEMCPClient(s.URL, opts...)
+				if clientErr == nil {
+					clientErr = mcpClient.Start(ctx)
+				}
+			}
+
+			if clientErr != nil {
+				return fmt.Errorf("failed to create MCP client for %q: %w", t.Name, clientErr)
+			}
+
+			// Initialize
+			initReq := mcp.InitializeRequest{}
+			initReq.Params.ProtocolVersion = "2024-11-05"
+			initReq.Params.ClientInfo = mcp.Implementation{Name: "dux", Version: "1.0.0"}
+			if _, err := mcpClient.Initialize(ctx, initReq); err != nil {
+				return fmt.Errorf("failed to initialize MCP client %q: %w", t.Name, err)
+			}
+			mcpClients = append(mcpClients, mcpClient)
+
+			r, err := tool.NewMCPResolver(ctx, mcpClient)
+			if err != nil {
+				return fmt.Errorf("failed to bind MCP resolver %q: %w", t.Name, err)
+			}
+			resolvers = append(resolvers, r)
 		}
 
 		mem := history.NewInMemory()

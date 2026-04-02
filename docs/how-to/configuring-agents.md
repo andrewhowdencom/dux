@@ -46,6 +46,22 @@ An agents file uses a YAML array of agent definitions. You can start by checking
   context:
     system: |
       You are a technical writer conforming to the Diátaxis documentation framework.
+
+- name: "researcher"
+  provider: "openai"
+  context:
+    tools:
+      - name: "filesystem"
+        enabled: true
+        mcp:
+          command: "npx"
+          args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
+      - name: "weather"
+        enabled: true
+        mcp:
+          url: "http://localhost:3000/sse"
+          headers:
+            "Authorization": "Bearer token123"
 ```
 
 ### Agent Fields
@@ -54,8 +70,16 @@ An agents file uses a YAML array of agent definitions. You can start by checking
 *   `provider` (string): The LLM Provider ID from your core configuration (e.g., `config.yaml` `llm.providers` array).
 *   `context` (object): Options for defining dynamic and static inputs.
     *   `system` (string): The initial prompt injected seamlessly at the start of your chat instance.
-    *   `tools` (array): A list of objects binding specific tool configurations (`name`, `enabled`, `requirements: { supervision: true/false }`) securely into the LLM context. Available built-in tools include `time`, `bash`, `file_read`, `file_write`, `file_patch`, and `file_list`.
     *   `enrichers` (array): A list of dynamic context injection tools (e.g. `type: "time"` or `type: "os"`).
+    *   `tools` (array): A list of local or remote MCP tools to bind to the agent context.
+        *   `name` (string): Identifier for the tool or MCP server.
+        *   `enabled` (bool): Whether the tool is active.
+        *   `mcp` (object): Options for an external Model Context Protocol server.
+            *   `command` (string): Command to execute a local server in `stdio` mode (e.g., `npx`).
+            *   `args` (array): Arguments passed to the `command` (e.g., `["-y", "@modelcontextprotocol/server-filesystem", "/src"]`).
+            *   `env` (map): Arbitrary key/value pairs for local subprocess environment variables.
+            *   `url` (string): Absolute URL endpoint targeting an `sse` event stream. (If provided, takes precedence over `command`).
+            *   `headers` (map): Arbitrary key/value HTTP headers (e.g., Authorization) sent to remote `sse` servers.
 
 ## Using an Agent in the CLI
 
