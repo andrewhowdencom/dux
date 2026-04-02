@@ -35,6 +35,8 @@ nav:
     - "Migration Agent": tutorials/migration-agent.md
     - "Guild Management Agent": tutorials/guild-management-agent.md
     - "Product Marketing Agent": tutorials/product-marketing-agent.md
+    - "Q&A Bot Agent": tutorials/qa-bot-agent.md
+    - "Helpful Assistant (Clippy)": tutorials/clippy-agent.md
   - How-To Guides:
     - "Running Locally": how-to/running-locally.md
     - "Configuring Agents": how-to/configuring-agents.md
