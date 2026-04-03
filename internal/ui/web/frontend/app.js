@@ -1,0 +1,244 @@
+const md = window.markdownit();
+
+const elements = {
+    agentSelect: document.getElementById('agentSelect'),
+    chatForm: document.getElementById('chatForm'),
+    promptInput: document.getElementById('promptInput'),
+    sendBtn: document.getElementById('sendBtn'),
+    chatContainer: document.getElementById('chatContainer')
+};
+
+// State
+let loadedAgents = [];
+let isGenerating = false;
+
+// Initialize
+async function loadAgents() {
+    try {
+        const response = await fetch('/api/agents');
+        if (!response.ok) throw new Error('Failed to load agents');
+        const data = await response.json();
+        loadedAgents = data;
+        
+        elements.agentSelect.innerHTML = '';
+        
+        // Add Agents Group
+        if (data.Agents && data.Agents.length > 0) {
+            const agentGroup = document.createElement('optgroup');
+            agentGroup.label = "Agents";
+            
+            data.Agents.forEach(group => {
+                if (group.Agents) {
+                    group.Agents.forEach(agent => {
+                        const option = document.createElement('option');
+                        option.value = `agent:${agent.Name}`;
+                        option.textContent = agent.Name + (agent.Description ? ` - ${agent.Description}` : '');
+                        agentGroup.appendChild(option);
+                    });
+                }
+            });
+            if (agentGroup.children.length > 0) {
+                elements.agentSelect.appendChild(agentGroup);
+            }
+        }
+        
+        // Add Providers Group
+        if (data.Providers && data.Providers.length > 0) {
+            const providerGroup = document.createElement('optgroup');
+            providerGroup.label = "Raw Providers";
+            
+            data.Providers.forEach(provider => {
+                const option = document.createElement('option');
+                option.value = `provider:${provider.ID}`;
+                option.textContent = provider.ID + ` (${provider.Type})`;
+                providerGroup.appendChild(option);
+            });
+            elements.agentSelect.appendChild(providerGroup);
+        }
+        
+        elements.agentSelect.disabled = false;
+        elements.sendBtn.disabled = false;
+    } catch (e) {
+        console.error(e);
+        elements.agentSelect.innerHTML = '<option>Error loading agents</option>';
+    }
+}
+
+// Auto-resize textarea
+elements.promptInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+});
+
+elements.promptInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        elements.chatForm.dispatchEvent(new Event('submit'));
+    }
+});
+
+// Create Message Bubble
+function createMessageBubble(role) {
+    const wrap = document.createElement('div');
+    wrap.className = `message ${role}`;
+    
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    wrap.appendChild(content);
+    
+    elements.chatContainer.appendChild(wrap);
+    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+    
+    return content;
+}
+
+// Handle Form Submit
+elements.chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (isGenerating || !elements.promptInput.value.trim()) return;
+    
+    const prompt = elements.promptInput.value.trim();
+    const selection = elements.agentSelect.value;
+    let agent = '';
+    let provider = '';
+    if (selection.startsWith('agent:')) {
+        agent = selection.replace('agent:', '');
+    } else if (selection.startsWith('provider:')) {
+        provider = selection.replace('provider:', '');
+    }
+    
+    // Add user message
+    const userMessageContent = createMessageBubble('user');
+    userMessageContent.innerHTML = md.render(prompt);
+    
+    // Reset input
+    elements.promptInput.value = '';
+    elements.promptInput.style.height = 'auto';
+    
+    await generateResponse(agent, provider, prompt);
+});
+
+async function resolveHitl(callId, approve, hitlElement) {
+    hitlElement.querySelectorAll('button').forEach(b => b.disabled = true);
+    try {
+        const res = await fetch('/api/chat/approve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({call_id: callId, approve})
+        });
+        if (res.ok) {
+            hitlElement.style.opacity = '0.5';
+            hitlElement.querySelector('.hitl-header').innerHTML = approve ? '✅ Tool Approved' : '❌ Tool Denied';
+        } else {
+            alert('Failed to resolve tool request');
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+function createHitlBlock(contentEl, data) {
+    const block = document.createElement('div');
+    block.className = 'hitl-block';
+    
+    const header = document.createElement('div');
+    header.className = 'hitl-header';
+    header.innerHTML = `⚠️ Approval Required: ${data.tool}`;
+    
+    const body = document.createElement('div');
+    body.className = 'hitl-body';
+    body.textContent = JSON.stringify(data.args, null, 2);
+    
+    const actions = document.createElement('div');
+    actions.className = 'hitl-actions';
+    
+    const denyBtn = document.createElement('button');
+    denyBtn.className = 'btn-danger';
+    denyBtn.textContent = 'Deny';
+    denyBtn.onclick = () => resolveHitl(data.call_id, false, block);
+    
+    const allowBtn = document.createElement('button');
+    allowBtn.className = 'btn-success';
+    allowBtn.textContent = 'Approve';
+    allowBtn.onclick = () => resolveHitl(data.call_id, true, block);
+    
+    actions.appendChild(denyBtn);
+    actions.appendChild(allowBtn);
+    
+    block.appendChild(header);
+    block.appendChild(body);
+    block.appendChild(actions);
+    
+    contentEl.appendChild(block);
+    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+}
+
+// Parse NDJSON Stream
+async function generateResponse(agent, provider, prompt) {
+    isGenerating = true;
+    elements.sendBtn.disabled = true;
+    elements.promptInput.disabled = true;
+    
+    const assistantContent = createMessageBubble('assistant');
+    let fullText = '';
+    
+    // We create a thinking element that can be toggled/removed
+    const thinkingEl = document.createElement('div');
+    thinkingEl.className = 'thinking-text';
+    assistantContent.appendChild(thinkingEl);
+    
+    const textEl = document.createElement('div');
+    assistantContent.appendChild(textEl);
+    
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({agent, provider, prompt})
+        });
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        while (true) {
+            const {value, done} = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, {stream: true});
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line in buffer
+            
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const data = JSON.parse(line);
+                    if (data.type === 'text') {
+                        fullText += data.content;
+                        textEl.innerHTML = md.render(fullText);
+                    } else if (data.type === 'thinking') {
+                        thinkingEl.textContent += data.content;
+                    } else if (data.type === 'hitl_request') {
+                        createHitlBlock(assistantContent, data);
+                    } else if (data.type === 'error') {
+                        textEl.innerHTML += `<br><span style="color:var(--danger)">${data.error}</span>`;
+                    }
+                    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+                } catch(e) {
+                    console.error('Error parsing line:', line, e);
+                }
+            }
+        }
+    } catch(e) {
+        console.error(e);
+        assistantContent.innerHTML += `<br><span style="color:var(--danger)">Connection Error</span>`;
+    } finally {
+        isGenerating = false;
+        elements.sendBtn.disabled = false;
+        elements.promptInput.disabled = false;
+        elements.promptInput.focus();
+    }
+}
+
+// Start
+loadAgents();

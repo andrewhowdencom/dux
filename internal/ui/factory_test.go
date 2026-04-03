@@ -1,4 +1,4 @@
-package cli
+package ui
 
 import (
 	"context"
@@ -15,7 +15,7 @@ func TestNewEnrichersFromConfig(t *testing.T) {
 		{Type: "guard_rail", Text: "Do not mention unicorns."},
 	}
 
-	enrichers, err := newEnrichersFromConfig(cfgs)
+	enrichers, err := NewEnrichersFromConfig(cfgs)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestNewEnrichersFromConfigUnknownType(t *testing.T) {
 		{Type: "invalid_mystery_type"},
 	}
 
-	_, err := newEnrichersFromConfig(cfgs)
+	_, err := NewEnrichersFromConfig(cfgs)
 	if err == nil {
 		t.Fatalf("expected error for invalid type, got nil")
 	}

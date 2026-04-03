@@ -19,13 +19,11 @@ type InstanceConfig struct {
 	Config map[string]interface{} `mapstructure:"config"` // Polymorphic config
 }
 
-// LoadLLMProvider reads the LLM deployment mappings from the current Viper context.
-// It applies a generous suite of fallback configurations if the tree is completely missing,
-// and resolves a single instance representation based on target request strings.
-func LoadLLMProvider(targetID string) (InstanceConfig, error) {
+// LoadLLMProviders returns all configured LLM providers.
+func LoadLLMProviders() ([]InstanceConfig, error) {
 	var cfg Config
 	if err := viper.UnmarshalKey("llm", &cfg); err != nil {
-		return InstanceConfig{}, fmt.Errorf("failed to parse llm config: %w", err)
+		return nil, fmt.Errorf("failed to parse llm config: %w", err)
 	}
 
 	// Fallback for seamless local testing if user hasn't written their own config yet
@@ -45,15 +43,28 @@ func LoadLLMProvider(targetID string) (InstanceConfig, error) {
 			},
 		}
 	}
+	return cfg.Providers, nil
+}
+
+// LoadLLMProvider reads the LLM deployment mappings from the current Viper context.
+// It applies a generous suite of fallback configurations if the tree is completely missing,
+// and resolves a single instance representation based on target request strings.
+func LoadLLMProvider(targetID string) (InstanceConfig, error) {
+	providers, err := LoadLLMProviders()
+	if err != nil {
+		return InstanceConfig{}, err
+	}
 
 	if targetID == "" {
+		var cfg Config
+		_ = viper.UnmarshalKey("llm", &cfg)
 		targetID = cfg.DefaultProvider
 	}
-	if targetID == "" && len(cfg.Providers) > 0 {
-		targetID = cfg.Providers[0].ID
+	if targetID == "" && len(providers) > 0 {
+		targetID = providers[0].ID
 	}
 
-	for _, p := range cfg.Providers {
+	for _, p := range providers {
 		if p.ID == targetID {
 			return p, nil
 		}
