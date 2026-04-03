@@ -16,6 +16,13 @@ llm:
         # Optional: override attention window limit for large schemas.
         num_ctx: 8192
 
+    # A standard Gemini API deployment targeting Google AI Studio
+    - id: "gemini-api"
+      type: "gemini"
+      config:
+        api_key: "AIzaSyYourAPIKeyHere..."
+        model: "gemini-3-flash-preview"
+
     # A generic testing sandbox provider backing the core integration layer
     - id: "static-fallback"
       type: "static"
