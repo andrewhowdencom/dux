@@ -38,13 +38,14 @@ type AgentContext struct {
 }
 
 // MCPServer defines configuration for an external Model Context Protocol server.
-// It supports either stdio (Command/Args) or SSE (URL) transports.
+// It supports stdio (Command/Args), streamable_http (URL), or explicitly sse (URL) transports.
 type MCPServer struct {
-	Command string            `yaml:"command,omitempty"`
-	Args    []string          `yaml:"args,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
-	URL     string            `yaml:"url,omitempty"`
-	Headers map[string]string `yaml:"headers,omitempty"`
+	Transport string            `yaml:"transport,omitempty"`
+	Command   string            `yaml:"command,omitempty"`
+	Args      []string          `yaml:"args,omitempty"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	URL       string            `yaml:"url,omitempty"`
+	Headers   map[string]string `yaml:"headers,omitempty"`
 }
 
 // Agent defines a distinct interactive role combining a provider and dynamic context.

@@ -113,13 +113,23 @@ func NewEngine(
 		var clientErr error
 		s := t.MCP
 
-		if s.Command != "" {
+		transportType := s.Transport
+		if transportType == "" {
+			if s.Command != "" {
+				transportType = "stdio"
+			} else if s.URL != "" {
+				transportType = "streamable_http"
+			}
+		}
+
+		switch transportType {
+		case "stdio":
 			env := make([]string, 0, len(s.Env))
 			for k, v := range s.Env {
 				env = append(env, fmt.Sprintf("%s=%s", k, v))
 			}
 			mcpClient, clientErr = client.NewStdioMCPClient(s.Command, env, s.Args...)
-		} else if s.URL != "" {
+		case "sse":
 			var opts []transport.ClientOption
 			if s.Headers != nil {
 				opts = append(opts, transport.WithHeaders(s.Headers))
@@ -128,6 +138,19 @@ func NewEngine(
 			if clientErr == nil {
 				clientErr = mcpClient.Start(ctx)
 			}
+		case "streamable_http":
+			var opts []transport.StreamableHTTPCOption
+			if s.Headers != nil {
+				opts = append(opts, transport.WithHTTPHeaders(s.Headers))
+			}
+			var tport *transport.StreamableHTTP
+			tport, clientErr = transport.NewStreamableHTTP(s.URL, opts...)
+			if clientErr == nil {
+				mcpClient = client.NewClient(tport)
+				clientErr = mcpClient.Start(ctx)
+			}
+		default:
+			clientErr = fmt.Errorf("unsupported or missing MCP transport type: %q", transportType)
 		}
 
 		if clientErr != nil {
