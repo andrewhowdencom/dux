@@ -24,7 +24,7 @@ var httpServeCmd = &cobra.Command{
 
 		if cmd.Flags().Lookup("with-ui").Changed {
 			if withUI, _ := cmd.Flags().GetBool("with-ui"); withUI {
-				mux.Handle("/", web.NewMux())
+				mux.Handle("/", web.NewMux(agentsFile))
 			}
 		}
 

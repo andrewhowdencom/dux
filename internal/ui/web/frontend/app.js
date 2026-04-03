@@ -27,15 +27,11 @@ async function loadAgents() {
             const agentGroup = document.createElement('optgroup');
             agentGroup.label = "Agents";
             
-            data.Agents.forEach(group => {
-                if (group.Agents) {
-                    group.Agents.forEach(agent => {
-                        const option = document.createElement('option');
-                        option.value = `agent:${agent.Name}`;
-                        option.textContent = agent.Name + (agent.Description ? ` - ${agent.Description}` : '');
-                        agentGroup.appendChild(option);
-                    });
-                }
+            data.Agents.forEach(agent => {
+                const option = document.createElement('option');
+                option.value = `agent:${agent.Name}`;
+                option.textContent = agent.Name;
+                agentGroup.appendChild(option);
             });
             if (agentGroup.children.length > 0) {
                 elements.agentSelect.appendChild(agentGroup);

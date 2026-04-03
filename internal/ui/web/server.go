@@ -22,15 +22,17 @@ type Streamer interface {
 type EngineFactory func(ctx context.Context, agentName string, providerID string, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error)
 
 type Server struct {
+	agentsFile    string
 	hitl          *WebHITL
 	engineFactory EngineFactory
 }
 
 // NewMux creates a new HTTP serve mux for the UI.
-func NewMux() *http.ServeMux {
+func NewMux(agentsFile string) *http.ServeMux {
 	mux := http.NewServeMux()
 	srv := &Server{
-		hitl: NewWebHITL(),
+		agentsFile: agentsFile,
+		hitl:       NewWebHITL(),
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
 			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 		},
@@ -53,10 +55,14 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path, err := xdg.ConfigFile("dux/agents.yaml")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	path := s.agentsFile
+	if path == "" {
+		p, err := xdg.ConfigFile("dux/agents.yaml")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		path = p
 	}
 
 	agents, err := config.LoadAgents(path)
@@ -120,7 +126,11 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create engine for this ephemeral request
-	path, _ := xdg.ConfigFile("dux/agents.yaml")
+	path := s.agentsFile
+	if path == "" {
+		p, _ := xdg.ConfigFile("dux/agents.yaml")
+		path = p
+	}
 	engine, _, cleanup, err := s.engineFactory(r.Context(), payload.Agent, payload.Provider, path, s.hitl, false)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to initialize engine: %v", err), http.StatusInternalServerError)
