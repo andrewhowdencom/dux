@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -75,8 +76,19 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 						}
 						
 						if part.FunctionCall != nil {
+							type geminiToolMetadata struct {
+								ID               string `json:"id,omitempty"`
+								ThoughtSignature []byte `json:"ts,omitempty"`
+							}
+							meta := geminiToolMetadata{
+								ID:               part.FunctionCall.ID,
+								ThoughtSignature: part.ThoughtSignature,
+							}
+							b, _ := json.Marshal(meta)
+							importBase64Fix := base64.StdEncoding.EncodeToString(b) // Will ensure imports in a pass
+
 							out <- llm.ToolRequestPart{
-								ToolID: "", // function call ID not directly exposed unless we generate it
+								ToolID: importBase64Fix,
 								Name:   part.FunctionCall.Name,
 								Args:   part.FunctionCall.Args,
 							}
@@ -158,8 +170,28 @@ func buildGeminiRequest(messages []llm.Message) ([]*genai.Content, *genai.Genera
 				// gemini might not have explicit reasoning part in user requests yet, just map to text
 				contentParts = append(contentParts, &genai.Part{Text: string(part)})
 			case llm.ToolRequestPart:
+				type geminiToolMetadata struct {
+					ID               string `json:"id,omitempty"`
+					ThoughtSignature []byte `json:"ts,omitempty"`
+				}
+				var id string
+				var ts []byte
+
+				if part.ToolID != "" {
+					b, err := base64.StdEncoding.DecodeString(part.ToolID)
+					if err == nil {
+						var meta geminiToolMetadata
+						if json.Unmarshal(b, &meta) == nil {
+							id = meta.ID
+							ts = meta.ThoughtSignature
+						}
+					}
+				}
+
 				contentParts = append(contentParts, &genai.Part{
+					ThoughtSignature: ts,
 					FunctionCall: &genai.FunctionCall{
+						ID:   id,
 						Name: part.Name,
 						Args: part.Args,
 					},
@@ -175,8 +207,25 @@ func buildGeminiRequest(messages []llm.Message) ([]*genai.Content, *genai.Genera
 						_ = json.Unmarshal(b, &responseMap)
 					}
 				}
+				
+				type geminiToolMetadata struct {
+					ID               string `json:"id,omitempty"`
+					ThoughtSignature []byte `json:"ts,omitempty"`
+				}
+				var id string
+				if part.ToolID != "" {
+					b, err := base64.StdEncoding.DecodeString(part.ToolID)
+					if err == nil {
+						var meta geminiToolMetadata
+						if json.Unmarshal(b, &meta) == nil {
+							id = meta.ID
+						}
+					}
+				}
+
 				contentParts = append(contentParts, &genai.Part{
 					FunctionResponse: &genai.FunctionResponse{
+						ID:       id,
 						Name:     part.Name, 
 						Response: responseMap,
 					},
