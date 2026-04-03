@@ -101,6 +101,10 @@ func NewResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
 		switch c {
 		case "time":
 			staticTools = append(staticTools, timetool.New())
+		case "timer":
+			staticTools = append(staticTools, timetool.NewTimer())
+		case "stopwatch":
+			staticTools = append(staticTools, timetool.NewStopwatch())
 		case "bash":
 			staticTools = append(staticTools, bashtool.New())
 		case "file_read":
