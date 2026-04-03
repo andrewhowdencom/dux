@@ -9,6 +9,7 @@ import (
 	"github.com/andrewhowdencom/dux/internal/ui/web"
 	"github.com/andrewhowdencom/stdlib/http"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var httpServeCmd = &cobra.Command{
@@ -29,7 +30,9 @@ var httpServeCmd = &cobra.Command{
 
 		handler := loggingMiddleware(recoveryMiddleware(mux))
 
-		srv, err := http.NewServer(":8080", handler,
+		address := viper.GetString("http.address")
+
+		srv, err := http.NewServer(address, handler,
 			http.WithWriteTimeout(2*time.Hour),
 			http.WithReadTimeout(2*time.Hour),
 			http.WithIdleTimeout(2*time.Hour),
@@ -38,7 +41,7 @@ var httpServeCmd = &cobra.Command{
 			return fmt.Errorf("failed to create server: %w", err)
 		}
 
-		fmt.Println("Starting server on :8080")
+		fmt.Printf("Starting server on %s\n", address)
 		if err := srv.Run(); err != nil {
 			return fmt.Errorf("server exited with error: %w", err)
 		}
@@ -49,6 +52,8 @@ var httpServeCmd = &cobra.Command{
 var withUI bool
 
 func init() {
+	httpServeCmd.Flags().String("address", ":8080", "Address to listen on for the HTTP server")
+	_ = viper.BindPFlag("http.address", httpServeCmd.Flags().Lookup("address"))
 	httpServeCmd.Flags().BoolVar(&withUI, "with-ui", false, "Start the web UI along with the HTTP server")
 	httpCmd.AddCommand(httpServeCmd)
 }
