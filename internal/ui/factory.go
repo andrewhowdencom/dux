@@ -7,6 +7,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider/gemini"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/ollama"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/openai"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
@@ -31,6 +32,7 @@ func NewProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error)
 		var ollamaCfg struct {
 			Address string `mapstructure:"address"`
 			Model   string `mapstructure:"model"`
+			NumCtx  int    `mapstructure:"num_ctx"`
 		}
 		if err := mapstructure.Decode(cfg.Config, &ollamaCfg); err != nil {
 			return nil, fmt.Errorf("failed to decode ollama config: %w", err)
@@ -41,6 +43,9 @@ func NewProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error)
 		}
 		if ollamaCfg.Model != "" {
 			opts = append(opts, ollama.WithModel(ollamaCfg.Model))
+		}
+		if ollamaCfg.NumCtx > 0 {
+			opts = append(opts, ollama.WithNumCtx(ollamaCfg.NumCtx))
 		}
 		return ollama.New(opts...)
 
@@ -61,6 +66,20 @@ func NewProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error)
 			opts = append(opts, openai.WithModel(openAICfg.Model))
 		}
 		return openai.New(openAICfg.APIKey, opts...)
+
+	case "gemini":
+		var geminiCfg struct {
+			APIKey string `mapstructure:"api_key"`
+			Model  string `mapstructure:"model"`
+		}
+		if err := mapstructure.Decode(cfg.Config, &geminiCfg); err != nil {
+			return nil, fmt.Errorf("failed to decode gemini config: %w", err)
+		}
+		var opts []gemini.Option
+		if geminiCfg.Model != "" {
+			opts = append(opts, gemini.WithModel(geminiCfg.Model))
+		}
+		return gemini.New(geminiCfg.APIKey, opts...)
 
 	default:
 		return nil, fmt.Errorf("unknown or unsupported provider type: %q (id: %q)", cfg.Type, cfg.ID)
