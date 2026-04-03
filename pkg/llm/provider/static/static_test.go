@@ -9,7 +9,7 @@ import (
 )
 
 func TestStaticProvider(t *testing.T) {
-	prv, err := static.New(nil)
+	prv, err := static.New()
 	if err != nil {
 		t.Fatalf("unexpected error creating static provider: %v", err)
 	}

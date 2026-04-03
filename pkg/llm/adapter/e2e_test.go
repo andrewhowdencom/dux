@@ -17,8 +17,7 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 	// 1. Initialize the Provider
 	// The static provider yields exactly what it is configured to yield.
 	expectedReply := "Hello from the pure Go library!"
-	providerCfg := map[string]interface{}{"text": expectedReply}
-	prv, err := static.New(providerCfg)
+	prv, err := static.New(static.WithText(expectedReply))
 	if err != nil {
 		t.Fatalf("failed to create static provider: %v", err)
 	}

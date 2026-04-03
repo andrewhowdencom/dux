@@ -130,13 +130,7 @@ func TestGenerateStream_ToolID_Preservation(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cfg := map[string]interface{}{
-		"base_url": ts.URL,
-		"api_key":  "test_key",
-		"model":    "gpt-4o",
-	}
-
-	prov, err := New(cfg)
+	prov, err := New("test_key", WithBaseURL(ts.URL), WithModel("gpt-4o"))
 	if err != nil {
 		t.Fatalf("failed to create provider: %v", err)
 	}

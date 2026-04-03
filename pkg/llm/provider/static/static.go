@@ -4,28 +4,41 @@ import (
 	"context"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
-	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 )
+
+// Option allows functional configuration of the Static Provider.
+type Option func(*Provider)
+
+// WithText sets the static message text yielded by the provider.
+func WithText(text string) Option {
+	return func(p *Provider) {
+		p.text = text
+	}
+}
 
 // Provider implements the LLM Provider stream by yielding hardcoded messages.
 type Provider struct {
+	text      string
 	responses []llm.Message
 }
 
-func New(config map[string]interface{}) (provider.Provider, error) {
-	responseText := "I am a static LLM. I'm operating within the generic Provider pipeline!"
-	if text, ok := config["text"].(string); ok {
-		responseText = text
+func New(opts ...Option) (*Provider, error) {
+	p := &Provider{
+		text: "I am a static LLM. I'm operating within the generic Provider pipeline!",
 	}
 
-	responses := []llm.Message{
+	for _, opt := range opts {
+		opt(p)
+	}
+
+	p.responses = []llm.Message{
 		{
 			SessionID: "static",
 			Identity:  llm.Identity{Role: "assistant"},
-			Parts:     []llm.Part{llm.TextPart(responseText)},
+			Parts:     []llm.Part{llm.TextPart(p.text)},
 		},
 	}
-	return &Provider{responses: responses}, nil
+	return p, nil
 }
 
 // GenerateStream immediately yields all specified message parts directly into the output stream.

@@ -8,46 +8,50 @@ import (
 	"net/url"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
-	"github.com/andrewhowdencom/dux/pkg/llm/provider"
-	"github.com/mitchellh/mapstructure"
 	api "github.com/ollama/ollama/api"
 )
 
-type Config struct {
-	Address string `mapstructure:"address"`
-	Model   string `mapstructure:"model"`
+// Option allows functional configuration of the Ollama Provider.
+type Option func(*Provider)
+
+// WithAddress overrides the default Ollama API address.
+func WithAddress(address string) Option {
+	return func(p *Provider) {
+		p.address = address
+	}
+}
+
+// WithModel sets the target chat completion model.
+func WithModel(model string) Option {
+	return func(p *Provider) {
+		p.model = model
+	}
 }
 
 type Provider struct {
-	client *api.Client
-	model  string
+	client  *api.Client
+	model   string
+	address string
 }
 
-func New(rawConfig map[string]interface{}) (provider.Provider, error) {
-	var cfg Config
-	if err := mapstructure.Decode(rawConfig, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to decode ollama config: %w", err)
+// New constructs an Ollama compatible provider utilizing functional options.
+func New(opts ...Option) (*Provider, error) {
+	p := &Provider{
+		address: "http://localhost:11434",
+		model:   "llama3",
 	}
 
-	address := cfg.Address
-	if address == "" {
-		address = "http://localhost:11434"
+	for _, opt := range opts {
+		opt(p)
 	}
-	u, err := url.Parse(address)
+
+	u, err := url.Parse(p.address)
 	if err != nil {
 		return nil, fmt.Errorf("invalid address for ollama: %w", err)
 	}
 
-	model := cfg.Model
-	if model == "" {
-		model = "llama3"
-	}
-
-	client := api.NewClient(u, http.DefaultClient)
-	return &Provider{
-		client: client,
-		model:  model,
-	}, nil
+	p.client = api.NewClient(u, http.DefaultClient)
+	return p, nil
 }
 
 func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {

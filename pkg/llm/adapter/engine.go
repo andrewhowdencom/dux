@@ -14,7 +14,7 @@ import (
 // tools, and conversation history.
 type Engine struct {
 	history      history.History
-	provider     provider.Provider
+	provider     provider.ChatGenerator
 	systemPrompt string
 	enrichers    []enrich.Enricher
 	resolvers    []llm.ToolResolver
@@ -32,7 +32,7 @@ func WithHistory(h history.History) Option {
 }
 
 // WithProvider sets the core LLM inference provider.
-func WithProvider(p provider.Provider) Option {
+func WithProvider(p provider.ChatGenerator) Option {
 	return func(e *Engine) {
 		e.provider = p
 	}

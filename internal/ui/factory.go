@@ -14,17 +14,54 @@ import (
 	filetool "github.com/andrewhowdencom/dux/pkg/llm/tool/file"
 	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	timetool "github.com/andrewhowdencom/dux/pkg/llm/tool/time"
+	"github.com/mitchellh/mapstructure"
 )
 
 // NewProviderFromConfig maps a generic config definition to a concrete LLM Provider constructor.
 func NewProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error) {
 	switch cfg.Type {
 	case "static":
-		return static.New(cfg.Config)
+		var staticOpts []static.Option
+		if text, ok := cfg.Config["text"].(string); ok {
+			staticOpts = append(staticOpts, static.WithText(text))
+		}
+		return static.New(staticOpts...)
+
 	case "ollama":
-		return ollama.New(cfg.Config)
+		var ollamaCfg struct {
+			Address string `mapstructure:"address"`
+			Model   string `mapstructure:"model"`
+		}
+		if err := mapstructure.Decode(cfg.Config, &ollamaCfg); err != nil {
+			return nil, fmt.Errorf("failed to decode ollama config: %w", err)
+		}
+		var opts []ollama.Option
+		if ollamaCfg.Address != "" {
+			opts = append(opts, ollama.WithAddress(ollamaCfg.Address))
+		}
+		if ollamaCfg.Model != "" {
+			opts = append(opts, ollama.WithModel(ollamaCfg.Model))
+		}
+		return ollama.New(opts...)
+
 	case "openai", "litellm":
-		return openai.New(cfg.Config)
+		var openAICfg struct {
+			BaseURL string `mapstructure:"base_url"`
+			APIKey  string `mapstructure:"api_key"`
+			Model   string `mapstructure:"model"`
+		}
+		if err := mapstructure.Decode(cfg.Config, &openAICfg); err != nil {
+			return nil, fmt.Errorf("failed to decode openai config: %w", err)
+		}
+		var opts []openai.Option
+		if openAICfg.BaseURL != "" {
+			opts = append(opts, openai.WithBaseURL(openAICfg.BaseURL))
+		}
+		if openAICfg.Model != "" {
+			opts = append(opts, openai.WithModel(openAICfg.Model))
+		}
+		return openai.New(openAICfg.APIKey, opts...)
+
 	default:
 		return nil, fmt.Errorf("unknown or unsupported provider type: %q (id: %q)", cfg.Type, cfg.ID)
 	}

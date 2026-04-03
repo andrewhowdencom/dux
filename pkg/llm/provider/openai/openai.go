@@ -11,48 +11,53 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
-	"github.com/andrewhowdencom/dux/pkg/llm/provider"
-	"github.com/mitchellh/mapstructure"
 	openai "github.com/sashabaranov/go-openai"
 )
 
-type Config struct {
-	BaseURL string `mapstructure:"base_url"`
-	APIKey  string `mapstructure:"api_key"`
-	Model   string `mapstructure:"model"`
+type Option func(*Provider)
+
+// WithBaseURL overrides the default OpenAI API base URL.
+func WithBaseURL(url string) Option {
+	return func(p *Provider) {
+		p.baseURL = url
+	}
+}
+
+// WithModel sets the target chat completion model.
+func WithModel(model string) Option {
+	return func(p *Provider) {
+		p.model = model
+	}
 }
 
 type Provider struct {
-	client *openai.Client
-	model  string
+	client  *openai.Client
+	model   string
+	baseURL string
 }
 
-func New(rawConfig map[string]interface{}) (provider.Provider, error) {
-	var cfg Config
-	if err := mapstructure.Decode(rawConfig, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to decode openai config: %w", err)
+// New constructs an OpenAI compatible provider utilizing functional options.
+func New(apiKey string, opts ...Option) (*Provider, error) {
+	p := &Provider{
+		model: openai.GPT4o,
 	}
 
-	clientConfig := openai.DefaultConfig(cfg.APIKey)
-	if cfg.BaseURL != "" {
-		_, err := url.ParseRequestURI(cfg.BaseURL)
+	for _, opt := range opts {
+		opt(p)
+	}
+
+	clientConfig := openai.DefaultConfig(apiKey)
+	if p.baseURL != "" {
+		_, err := url.ParseRequestURI(p.baseURL)
 		if err != nil {
 			return nil, fmt.Errorf("invalid base_url: %w", err)
 		}
-		clientConfig.BaseURL = cfg.BaseURL
+		clientConfig.BaseURL = p.baseURL
 	}
 
-	client := openai.NewClientWithConfig(clientConfig)
+	p.client = openai.NewClientWithConfig(clientConfig)
 
-	model := cfg.Model
-	if model == "" {
-		model = openai.GPT4o
-	}
-
-	return &Provider{
-		client: client,
-		model:  model,
-	}, nil
+	return p, nil
 }
 
 func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {

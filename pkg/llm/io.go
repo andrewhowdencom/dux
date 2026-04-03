@@ -12,6 +12,7 @@ type PartType string
 const (
 	TypeText           PartType = "text"
 	TypeReasoning      PartType = "reasoning"
+	TypeImage          PartType = "image"
 	TypeToolCall       PartType = "tool_call"
 	TypeToolDefinition PartType = "tool_definition"
 	TypeToolResult     PartType = "tool_result"
@@ -44,6 +45,15 @@ func (r ReasoningPart) Type() PartType { return TypeReasoning }
 func (r ReasoningPart) MarshalText() ([]byte, error) {
 	return []byte(r), nil
 }
+
+// ImagePart represents image data for multimodal LLMs.
+type ImagePart struct {
+	MIMEType string
+	Data     []byte
+	URL      string
+}
+
+func (i ImagePart) Type() PartType { return TypeImage }
 
 // ToolRequestPart carries arguments that evaluate downstream.
 type ToolRequestPart struct {
