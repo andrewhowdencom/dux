@@ -193,6 +193,11 @@ async function generateResponse(agent, provider, prompt) {
             body: JSON.stringify({agent, provider, prompt})
         });
         
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(errText || `HTTP ${response.status}`);
+        }
+        
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -227,7 +232,7 @@ async function generateResponse(agent, provider, prompt) {
         }
     } catch(e) {
         console.error(e);
-        assistantContent.innerHTML += `<br><span style="color:var(--danger)">Connection Error</span>`;
+        assistantContent.innerHTML += `<br><span style="color:var(--danger)">Connection Error: ${e.message}</span>`;
     } finally {
         isGenerating = false;
         elements.sendBtn.disabled = false;

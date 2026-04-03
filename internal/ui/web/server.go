@@ -59,6 +59,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		p, err := xdg.ConfigFile("dux/agents.yaml")
 		if err != nil {
+			slog.Error("failed to get xdg config file", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -67,12 +68,14 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 
 	agents, err := config.LoadAgents(path)
 	if err != nil {
+		slog.Error("failed to load agents", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	providers, err := config.LoadLLMProviders()
 	if err != nil {
+		slog.Error("failed to load LLM providers", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -101,6 +104,7 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.hitl.Resolve(payload.CallID, payload.Approve); err != nil {
+		slog.Error("failed to resolve hitl", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -121,6 +125,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		slog.Error("invalid request body", "error", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -133,6 +138,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 	engine, _, cleanup, err := s.engineFactory(r.Context(), payload.Agent, payload.Provider, path, s.hitl, false)
 	if err != nil {
+		slog.Error("failed to initialize engine", "error", err)
 		http.Error(w, fmt.Sprintf("failed to initialize engine: %v", err), http.StatusInternalServerError)
 		return
 	}
