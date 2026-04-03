@@ -99,19 +99,32 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 }
 
 func (p *Provider) ListModels(ctx context.Context) ([]string, error) {
-	// The new genai SDK Models list models operation is typically on client.Models.List() but keeping it simple right now
-	// To do a proper lookup we could use client.Models.List() if we fetch the right page wrapper but let's 
-	// fallback if not immediately apparent. Wait, let's just use empty model list or hardcoded default common ones
-	// for now, as genai handles mostly Gemini flavors.
-	models := []string{
-		"gemini-3-flash-preview",
-		"gemini-2.5-flash",
-		"gemini-2.5-pro",
-		"gemini-2.0-flash",
-		"gemini-2.0-pro-exp-02-05",
-		"gemini-1.5-pro",
-		"gemini-1.5-flash",
+	var models []string
+
+	page, err := p.client.Models.List(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list gemini models: %w", err)
 	}
+
+	for {
+		for _, m := range page.Items {
+			if m != nil && m.Name != "" {
+				name := m.Name
+				if len(name) > 7 && name[:7] == "models/" {
+					name = name[7:]
+				}
+				models = append(models, name)
+			}
+		}
+		if page.NextPageToken == "" {
+			break
+		}
+		page, err = page.Next(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get next page of gemini models: %w", err)
+		}
+	}
+
 	return models, nil
 }
 
