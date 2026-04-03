@@ -1,4 +1,4 @@
-package cli
+package ui
 
 import (
 	"fmt"
@@ -10,14 +10,14 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/ollama"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/openai"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
-	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	bashtool "github.com/andrewhowdencom/dux/pkg/llm/tool/bash"
 	filetool "github.com/andrewhowdencom/dux/pkg/llm/tool/file"
+	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	timetool "github.com/andrewhowdencom/dux/pkg/llm/tool/time"
 )
 
-// newProviderFromConfig maps a generic config definition to a concrete LLM Provider constructor.
-func newProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error) {
+// NewProviderFromConfig maps a generic config definition to a concrete LLM Provider constructor.
+func NewProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error) {
 	switch cfg.Type {
 	case "static":
 		return static.New(cfg.Config)
@@ -30,8 +30,8 @@ func newProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error)
 	}
 }
 
-// newEnrichersFromConfig builds an array of enrichers from raw agent configuration.
-func newEnrichersFromConfig(cfgs []config.Enricher) ([]enrich.Enricher, error) {
+// NewEnrichersFromConfig builds an array of enrichers from raw agent configuration.
+func NewEnrichersFromConfig(cfgs []config.Enricher) ([]enrich.Enricher, error) {
 	var results []enrich.Enricher
 
 	for _, c := range cfgs {
@@ -53,8 +53,8 @@ func newEnrichersFromConfig(cfgs []config.Enricher) ([]enrich.Enricher, error) {
 	return results, nil
 }
 
-// newResolversFromConfig builds an array of tool resolvers from string representations.
-func newResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
+// NewResolversFromConfig builds an array of tool resolvers from string representations.
+func NewResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
 	var results []llm.ToolResolver
 
 	// For standard configuration strings, wrap the tool inside a static resolver
@@ -85,4 +85,3 @@ func newResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
 
 	return results, nil
 }
-

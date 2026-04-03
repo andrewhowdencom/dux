@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dux Chat</title>
+    <!-- Premium Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Markdown Renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.2/dist/markdown-it.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top bar/header -->
+        <header class="header glass">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 6V12L16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Dux UI</span>
+            </div>
+            <div class="agent-selector">
+                <select id="agentSelect" class="input-modern" disabled>
+                    <option value="">Loading agents...</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <main class="chat-container box-shadow" id="chatContainer">
+            <!-- Messages go here -->
+            <div class="welcome-message text-center">
+                <h2>Welcome to Dux Chat</h2>
+                <p>Select an agent and start building.</p>
+            </div>
+        </main>
+
+        <!-- Input Area -->
+        <footer class="input-container glass">
+            <form id="chatForm" class="chat-form">
+                <textarea id="promptInput" class="input-modern prompt-textarea" placeholder="Send a message..." rows="1"></textarea>
+                <button type="submit" id="sendBtn" class="btn-primary" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </form>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
