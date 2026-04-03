@@ -13,6 +13,8 @@ llm:
       config:
         address: "http://localhost:11434"
         model: "gpt-oss:20b"
+        # Optional: override attention window limit for large schemas.
+        num_ctx: 8192
 
     # A generic testing sandbox provider backing the core integration layer
     - id: "static-fallback"

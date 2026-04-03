@@ -28,10 +28,21 @@ func WithModel(model string) Option {
 	}
 }
 
+// WithNumCtx explicitly sets the context window length for the model.
+func WithNumCtx(ctx int) Option {
+	return func(p *Provider) {
+		if p.options == nil {
+			p.options = make(map[string]any)
+		}
+		p.options["num_ctx"] = ctx
+	}
+}
+
 type Provider struct {
 	client  *api.Client
 	model   string
 	address string
+	options map[string]any
 }
 
 // New constructs an Ollama compatible provider utilizing functional options.
@@ -68,6 +79,7 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			Messages: reqMessages,
 			Tools:    reqTools,
 			Stream:   &t,
+			Options:  o.options,
 		}
 
 		err := o.client.Chat(ctx, req, func(resp api.ChatResponse) error {
