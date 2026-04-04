@@ -141,24 +141,36 @@ func (e *Engine) recursiveStream(ctx context.Context, sessionID string, out chan
 	}
 
 	var pendingCalls []llm.ToolRequestPart
+	var accumulatedParts []llm.Part
 
-	// Stream all parts to the client and history
+	// Stream all parts to the client synchronously, but accumulate for history
 	for part := range partStream {
 		msg := llm.Message{
 			SessionID: sessionID,
 			Identity:  llm.Identity{Role: "assistant"},
 			Parts:     []llm.Part{part},
 		}
-		if e.history != nil {
-			if err := e.history.Append(ctx, msg.SessionID, msg); err != nil {
-				e.sendError(ctx, out, err, msg.SessionID)
-				return
-			}
-		}
+
+		// Accumulate for history
+		accumulatedParts = append(accumulatedParts, part)
+		
 		e.safeSend(ctx, out, msg)
 
 		if tr, ok := part.(llm.ToolRequestPart); ok {
 			pendingCalls = append(pendingCalls, tr)
+		}
+	}
+
+	// Commit fully accumulated parts to history as a single message turn
+	if e.history != nil && len(accumulatedParts) > 0 {
+		bundledMsg := llm.Message{
+			SessionID: sessionID,
+			Identity:  llm.Identity{Role: "assistant"},
+			Parts:     accumulatedParts,
+		}
+		if err := e.history.Append(ctx, bundledMsg.SessionID, bundledMsg); err != nil {
+			e.sendError(ctx, out, err, bundledMsg.SessionID)
+			return
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/google/uuid"
 	api "github.com/ollama/ollama/api"
 )
 
@@ -91,6 +92,7 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			}
 			for _, tc := range resp.Message.ToolCalls {
 				out <- llm.ToolRequestPart{
+					ToolID: uuid.NewString(),
 					Name: tc.Function.Name,
 					Args: tc.Function.Arguments.ToMap(),
 				}

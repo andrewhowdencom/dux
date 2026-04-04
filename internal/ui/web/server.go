@@ -148,6 +148,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
 
 	rc := http.NewResponseController(w)
 
@@ -176,6 +177,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for msg := range streamChan {
+		slog.Info("received msg from streamChan", "parts_count", len(msg.Parts))
 		if len(msg.Parts) == 0 {
 			continue
 		}
@@ -183,24 +185,29 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("streaming part", "type", fmt.Sprintf("%T", part))
 		switch p := part.(type) {
 		case llm.TextPart:
-			_ = encoder.Encode(map[string]any{"type": "text", "content": string(p)})
+			err := encoder.Encode(map[string]any{"type": "text", "content": string(p)})
+			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
 		case llm.ReasoningPart:
-			_ = encoder.Encode(map[string]any{"type": "thinking", "content": string(p)})
+			err := encoder.Encode(map[string]any{"type": "thinking", "content": string(p)})
+			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
 		case llm.ToolRequestPart:
-			_ = encoder.Encode(map[string]any{
+			err := encoder.Encode(map[string]any{
 				"type":    "hitl_request",
 				"call_id": p.ToolID,
 				"tool":    p.Name,
 				"args":    p.Args,
 			})
+			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
+		default:
+			slog.Info("received unknown part type", "type", fmt.Sprintf("%T", p))
 		}
-		_ = rc.Flush()
+		if err := rc.Flush(); err != nil { slog.Error("FLUSH ERROR", "err", err) }
 	}
 
 	if err := <-errChan; err != nil {
 		slog.Error("error during chat engine stream", "err", err)
 		_ = encoder.Encode(map[string]any{"type": "error", "error": err.Error()})
-		_ = rc.Flush()
+		if err := rc.Flush(); err != nil { slog.Error("FLUSH ERROR", "err", err) }
 	}
 	slog.Debug("chat engine stream completed successfully")
 }
