@@ -20,9 +20,6 @@ type StreamTracker struct {
 
 	mu              sync.Mutex
 	text            string
-	reasoning       string
-	tools           []string
-	telemetry       string
 	pendingUpdate   bool
 	updateThrottler *time.Ticker
 }
@@ -34,9 +31,9 @@ func NewStreamTracker(bot *tgbotapi.BotAPI, chatID int64) *StreamTracker {
 	}
 }
 
-func (st *StreamTracker) ProcessStream(ctx context.Context, stream <-chan llm.Message) {
+// StartWorker initializes the ticker and starts pushing updates to telegram in the background.
+func (st *StreamTracker) StartWorker(ctx context.Context) func() {
 	st.updateThrottler = time.NewTicker(1500 * time.Millisecond)
-	defer st.updateThrottler.Stop()
 
 	// Initial placeholder message
 	msg := tgbotapi.NewMessage(st.chatID, "...")
@@ -49,13 +46,13 @@ func (st *StreamTracker) ProcessStream(ctx context.Context, stream <-chan llm.Me
 	done := make(chan struct{})
 
 	go func() {
+		defer st.updateThrottler.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-done:
-				// Final tick
-				st.tick()
+				// Final tick handled in Flush
 				return
 			case <-st.updateThrottler.C:
 				st.tick()
@@ -63,40 +60,31 @@ func (st *StreamTracker) ProcessStream(ctx context.Context, stream <-chan llm.Me
 		}
 	}()
 
-	for msg := range stream {
-		if len(msg.Parts) == 0 {
-			continue
-		}
-		
-		st.mu.Lock()
-		for _, part := range msg.Parts {
-			switch p := part.(type) {
-			case llm.TextPart:
-				st.text += string(p)
-				st.pendingUpdate = true
-			case llm.ReasoningPart:
-				st.reasoning += string(p)
-				st.pendingUpdate = true
-			case llm.ToolRequestPart:
-				st.tools = append(st.tools, fmt.Sprintf("🔧 <b>Calling Tool %s</b>\n<pre>%v</pre>", p.Name, html.EscapeString(fmt.Sprintf("%v", p.Args))))
-				st.pendingUpdate = true
-			case llm.ToolResultPart:
-				status := "✅"
-				if p.IsError {
-					status = "❌"
-				}
-				st.tools = append(st.tools, fmt.Sprintf("%s <b>Result from %s</b>\n<pre>%v</pre>", status, p.Name, html.EscapeString(fmt.Sprintf("%v", p.Result))))
-				st.pendingUpdate = true
-			case llm.TelemetryPart:
-				st.telemetry = fmt.Sprintf("\n\n📊 <b>Telemetry:</b>\nInput: %d | Output: %d | Reasoning: %d | Dur: %s", 
-					p.InputTokens, p.OutputTokens, p.ReasoningTokens, p.Duration)
-				st.pendingUpdate = true
-			}
-		}
-		st.mu.Unlock()
+	return func() {
+		close(done)
 	}
+}
 
-	close(done)
+func (st *StreamTracker) RenderTextChunk(chunk string) {
+	st.mu.Lock()
+	st.text += chunk
+	st.pendingUpdate = true
+	st.mu.Unlock()
+}
+
+func (st *StreamTracker) RenderError(err error) {
+	st.mu.Lock()
+	st.text += fmt.Sprintf("\n\n❌ Error: %v", err)
+	st.pendingUpdate = true
+	st.mu.Unlock()
+}
+
+func (st *StreamTracker) PromptHITL(req *llm.ToolRequestPart) {
+	// Telegram natively halts and sends an inline keyboard via the HITL interceptor (TelegramHITL).
+}
+
+func (st *StreamTracker) Flush() {
+	st.tick()
 }
 
 func (st *StreamTracker) tick() {
@@ -108,22 +96,8 @@ func (st *StreamTracker) tick() {
 	
 	var b strings.Builder
 	
-	if st.reasoning != "" {
-		b.WriteString("🤔 <b>Thinking...</b>\n")
-		b.WriteString(fmt.Sprintf("<i>%s</i>\n\n", html.EscapeString(st.reasoning)))
-	}
-	
 	if st.text != "" {
 		b.WriteString(html.EscapeString(st.text))
-	}
-	
-	if len(st.tools) > 0 {
-		b.WriteString("\n\n")
-		b.WriteString(strings.Join(st.tools, "\n\n"))
-	}
-	
-	if st.telemetry != "" {
-		b.WriteString(st.telemetry)
 	}
 
 	st.pendingUpdate = false

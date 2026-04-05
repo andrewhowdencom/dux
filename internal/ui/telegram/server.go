@@ -11,6 +11,7 @@ import (
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	pkgui "github.com/andrewhowdencom/dux/pkg/ui"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -230,21 +231,19 @@ func (s *Server) handleMessage(sess *Session, msg *tgbotapi.Message) {
 		sess.CleanupOpts = append(sess.CleanupOpts, cleanup)
 	}
 
-	input := llm.Message{
-		SessionID: fmt.Sprintf("telegram-%d", sess.ChatID),
-		Identity: llm.Identity{Role: "user"},
-		Parts: []llm.Part{
-			llm.TextPart(msg.Text),
-		},
-	}
-
-	streamChan, err := sess.Engine.Stream(sess.Ctx, input)
-	if err != nil {
-		out := tgbotapi.NewMessage(sess.ChatID, fmt.Sprintf("Error starting stream: %v", err))
-		_, _ = s.bot.Send(out)
-		return
-	}
-
 	st := NewStreamTracker(s.bot, sess.ChatID)
-	st.ProcessStream(sess.Ctx, streamChan)
+	stopWorker := st.StartWorker(sess.Ctx)
+	defer stopWorker()
+
+	session := &pkgui.ChatSession{
+		ID:      fmt.Sprintf("telegram-%d", sess.ChatID),
+		Engine:  sess.Engine,
+		View:    st,
+	}
+
+	if err := session.StreamQuery(sess.Ctx, msg.Text); err != nil {
+		out := tgbotapi.NewMessage(sess.ChatID, fmt.Sprintf("Error during stream execution: %v", err))
+		_, _ = s.bot.Send(out)
+	}
+	st.Flush()
 }

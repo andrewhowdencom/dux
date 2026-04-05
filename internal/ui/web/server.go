@@ -14,6 +14,7 @@ import (
 	"github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/internal/ui/web/frontend"
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	pkgui "github.com/andrewhowdencom/dux/pkg/ui"
 	"github.com/google/uuid"
 )
 
@@ -213,81 +214,92 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	rc := http.NewResponseController(w)
-
 	encoder := json.NewEncoder(w)
-	streamChan := make(chan llm.Message)
-	errChan := make(chan error, 1)
 
-	go func() {
-		msg := llm.Message{
-			SessionID: sessionID,
-			Identity:  llm.Identity{Role: "user"},
-			Parts: []llm.Part{
-				llm.TextPart(payload.Prompt),
-			},
-		}
-
-		out, err := engine.Stream(ctx, msg)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		for m := range out {
-			streamChan <- m
-		}
-		close(streamChan)
-		close(errChan)
-	}()
-
-	for msg := range streamChan {
-		slog.Info("received msg from streamChan", "parts_count", len(msg.Parts))
-		if len(msg.Parts) == 0 {
-			continue
-		}
-		part := msg.Parts[0]
-		slog.Debug("streaming part", "type", fmt.Sprintf("%T", part))
-		switch p := part.(type) {
-		case llm.TextPart:
-			err := encoder.Encode(map[string]any{"type": "text", "content": string(p)})
-			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
-		case llm.ReasoningPart:
-			err := encoder.Encode(map[string]any{"type": "thinking", "content": string(p)})
-			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
-		case llm.ToolRequestPart:
-			err := encoder.Encode(map[string]any{
-				"type":    "hitl_request",
-				"call_id": p.ToolID,
-				"tool":    p.Name,
-				"args":    p.Args,
-			})
-			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
-		case llm.ToolResultPart:
-			err := encoder.Encode(map[string]any{
-				"type":     "tool_result",
-				"tool":     p.Name,
-				"result":   fmt.Sprintf("%v", p.Result),
-				"is_error": p.IsError,
-			})
-			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
-		case llm.TelemetryPart:
-			err := encoder.Encode(map[string]any{
-				"type":             "telemetry",
-				"input_tokens":     p.InputTokens,
-				"output_tokens":    p.OutputTokens,
-				"reasoning_tokens": p.ReasoningTokens,
-				"duration_secs":    p.Duration.Seconds(),
-			})
-			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
-		default:
-			slog.Info("received unknown part type", "type", fmt.Sprintf("%T", p))
-		}
-		if err := rc.Flush(); err != nil { slog.Error("FLUSH ERROR", "err", err) }
+	view := &WebView{
+		encoder: encoder,
+		rc:      rc,
 	}
 
-	if err := <-errChan; err != nil {
+	session := &pkgui.ChatSession{
+		ID:      sessionID,
+		Engine:  engine,
+		View:    view,
+	}
+
+	if err := session.StreamQuery(ctx, payload.Prompt); err != nil {
 		slog.Error("error during chat engine stream", "err", err)
-		_ = encoder.Encode(map[string]any{"type": "error", "error": err.Error()})
-		if err := rc.Flush(); err != nil { slog.Error("FLUSH ERROR", "err", err) }
 	}
 	slog.Debug("chat engine stream completed successfully")
+}
+
+// WebView implements the different UI Extension features.
+type WebView struct {
+	encoder *json.Encoder
+	rc      *http.ResponseController
+}
+
+func (v *WebView) RenderTextChunk(chunk string) {
+	if err := v.encoder.Encode(map[string]any{"type": "text", "content": chunk}); err != nil {
+		slog.Error("ENCODE ERROR", "err", err)
+	}
+}
+
+func (v *WebView) RenderError(err error) {
+	if err := v.encoder.Encode(map[string]any{"type": "error", "error": err.Error()}); err != nil {
+		slog.Error("ENCODE ERROR", "err", err)
+	}
+}
+
+func (v *WebView) PromptHITL(req *llm.ToolRequestPart) {
+	err := v.encoder.Encode(map[string]any{
+		"type":    "hitl_request",
+		"call_id": req.ToolID,
+		"tool":    req.Name,
+		"args":    req.Args,
+	})
+	if err != nil {
+		slog.Error("ENCODE ERROR", "err", err)
+	}
+}
+
+func (v *WebView) Flush() {
+	if err := v.rc.Flush(); err != nil {
+		slog.Error("FLUSH ERROR", "err", err)
+	}
+}
+
+func (v *WebView) RenderThinkingChunk(chunk string) {
+	if err := v.encoder.Encode(map[string]any{"type": "thinking", "content": chunk}); err != nil {
+		slog.Error("ENCODE ERROR", "err", err)
+	}
+}
+
+func (v *WebView) RenderToolIntent(toolName string, args any) {
+	// The Web frontend currently handles the hitl_request separately.
+}
+
+func (v *WebView) RenderToolResult(toolName string, result any, isError bool) {
+	err := v.encoder.Encode(map[string]any{
+		"type":     "tool_result",
+		"tool":     toolName,
+		"result":   fmt.Sprintf("%v", result),
+		"is_error": isError,
+	})
+	if err != nil {
+		slog.Error("ENCODE ERROR", "err", err)
+	}
+}
+
+func (v *WebView) RenderTelemetry(telemetry llm.TelemetryPart) {
+	err := v.encoder.Encode(map[string]any{
+		"type":             "telemetry",
+		"input_tokens":     telemetry.InputTokens,
+		"output_tokens":    telemetry.OutputTokens,
+		"reasoning_tokens": telemetry.ReasoningTokens,
+		"duration_secs":    telemetry.Duration.Seconds(),
+	})
+	if err != nil {
+		slog.Error("ENCODE ERROR", "err", err)
+	}
 }

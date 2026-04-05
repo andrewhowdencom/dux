@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/ui"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -54,27 +55,53 @@ type uiModel struct {
 	messages []chatMessage
 	err      error
 
-	streamCh    <-chan llm.Message
+	program     *tea.Program
 	isStreaming bool
 	quit        bool
 }
 
-type streamMsg struct {
-	msg llm.Message
-	err error
+type uiEventMsg struct {
+	Type      string
+	Content   string
+	Name      string
+	Args      any
+	Result    any
+	IsError   bool
+	Telemetry llm.TelemetryPart
+	Err       error
+	Req       *llm.ToolRequestPart
 }
 
-func waitForNextChunk(ch <-chan llm.Message) tea.Cmd {
-	return func() tea.Msg {
-		if ch == nil {
-			return nil
-		}
-		p, ok := <-ch
-		if !ok {
-			return streamMsg{err: io.EOF}
-		}
-		return streamMsg{msg: p}
-	}
+func (m *uiModel) RenderTextChunk(chunk string) {
+	m.program.Send(uiEventMsg{Type: "text", Content: chunk})
+}
+
+func (m *uiModel) RenderError(err error) {
+	m.program.Send(uiEventMsg{Type: "error", Err: err})
+}
+
+func (m *uiModel) PromptHITL(req *llm.ToolRequestPart) {
+	// HITL is already handled dynamically through the BubbleTeaHITL middleware channels.
+}
+
+func (m *uiModel) Flush() {
+	m.program.Send(uiEventMsg{Type: "flush"})
+}
+
+func (m *uiModel) RenderThinkingChunk(chunk string) {
+	m.program.Send(uiEventMsg{Type: "thinking", Content: chunk})
+}
+
+func (m *uiModel) RenderToolIntent(toolName string, args any) {
+	m.program.Send(uiEventMsg{Type: "tool_req", Name: toolName, Args: args})
+}
+
+func (m *uiModel) RenderToolResult(toolName string, result any, isError bool) {
+	m.program.Send(uiEventMsg{Type: "tool_res", Name: toolName, Result: result, IsError: isError})
+}
+
+func (m *uiModel) RenderTelemetry(telemetry llm.TelemetryPart) {
+	m.program.Send(uiEventMsg{Type: "telemetry", Telemetry: telemetry})
 }
 
 func waitForHITL(ch chan ToolApprovalRequestMsg) tea.Cmd {
@@ -86,7 +113,7 @@ func waitForHITL(ch chan ToolApprovalRequestMsg) tea.Cmd {
 	}
 }
 
-func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL) uiModel {
+func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL) *uiModel {
 	name := agentName
 	if name == "" {
 		name = "Dux"
@@ -121,7 +148,7 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentN
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	return uiModel{
+	return &uiModel{
 		ctx:       ctx,
 		engine:    engine,
 		modelName: modelName,
@@ -137,7 +164,7 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentN
 	}
 }
 
-func (m uiModel) Init() tea.Cmd {
+func (m *uiModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, textarea.Blink, m.spinner.Tick)
 	if m.hitl != nil {
@@ -146,7 +173,7 @@ func (m uiModel) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		tiCmd tea.Cmd
 		vpCmd tea.Cmd
@@ -201,34 +228,23 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.Reset()
 			m.updateViewport()
 
-			// Create stream context
-			streamCtx, cancel := context.WithCancel(m.ctx)
-			streamCtx = llm.WithSessionID(streamCtx, m.sessionID)
-			m.cancelFunc = cancel
+			// Send to LLM using unified Session orchestrator
+			go func(input string) {
+				s := &ui.ChatSession{
+					ID:      m.sessionID,
+					Engine:  m.engine,
+					View:    m,
+				}
+				err := s.StreamQuery(m.ctx, input)
+				m.program.Send(uiEventMsg{Type: "done", Err: err})
+			}(v)
 
-			// Send to LLM
-			llmMsg := llm.Message{
-				SessionID: m.sessionID,
-				Identity:  llm.Identity{Role: "user"},
-				Parts:     []llm.Part{llm.TextPart(v)},
-			}
-
-			streamCh, err := m.engine.Stream(streamCtx, llmMsg)
-			if err != nil {
-				m.err = err
-				m.updateViewport()
-				break
-			}
-
-			m.streamCh = streamCh
 			m.isStreaming = true
 
 			// Append empty assistant message to accumulate chunks
 			m.messages = append(m.messages, chatMessage{
-				role: "assistant", // Default role initially
+				role: "assistant",
 			})
-
-			cmds = append(cmds, waitForNextChunk(m.streamCh))
 		}
 
 	case tea.WindowSizeMsg:
@@ -250,62 +266,55 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textarea.SetWidth(msg.Width)
 		m.updateViewport()
 
-	case streamMsg:
-		if msg.err == io.EOF {
-			m.isStreaming = false
-			m.cancelFunc = nil
-			m.updateViewport()
-			break
-		}
-		if msg.err != nil {
-			m.err = msg.err
-			m.isStreaming = false
-			m.cancelFunc = nil
-			m.updateViewport()
-			break
-		}
-
+	case uiEventMsg:
 		lastIdx := len(m.messages) - 1
-		for _, p := range msg.msg.Parts {
-			switch part := p.(type) {
-			case llm.TextPart:
-				m.messages[lastIdx].content += string(part)
-			case llm.ReasoningPart:
-				m.messages[lastIdx].thinking += string(part)
-			case llm.ToolRequestPart:
-				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("Tool Call: %s(%v)", part.Name, part.Args))
-			case llm.ToolResultPart:
-				resStr := fmt.Sprintf("%v", part.Result) // Format carefully
-				if len(resStr) > 500 {
-					resStr = resStr[:500] + " ... (truncated)"
-				}
-				if part.IsError {
-					m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Error (%s): %s", part.Name, resStr))
-				} else {
-					m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Result (%s): %s", part.Name, strings.ReplaceAll(resStr, "\n", "\\n")))
-				}
-			case llm.ToolDefinitionPart:
-				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("Schema: %s", part.Name))
-			case llm.TelemetryPart:
-				if m.messages[lastIdx].telemetry == nil {
-					m.messages[lastIdx].telemetry = &llm.TelemetryPart{
-						InputTokens:     part.InputTokens,
-						OutputTokens:    part.OutputTokens,
-						ReasoningTokens: part.ReasoningTokens,
-						Duration:        part.Duration,
-					}
-				} else {
-					m.messages[lastIdx].telemetry.InputTokens += part.InputTokens
-					m.messages[lastIdx].telemetry.OutputTokens += part.OutputTokens
-					m.messages[lastIdx].telemetry.ReasoningTokens += part.ReasoningTokens
-					m.messages[lastIdx].telemetry.Duration += part.Duration
-				}
-			}
-		}
 
-		m.updateViewport()
-		m.viewport.GotoBottom() // Auto-scroll to bottom while streaming
-		cmds = append(cmds, waitForNextChunk(m.streamCh))
+		switch msg.Type {
+		case "done":
+			m.isStreaming = false
+			m.cancelFunc = nil
+			if msg.Err != nil && msg.Err != io.EOF {
+				m.err = msg.Err
+			}
+			m.updateViewport()
+		case "error":
+			m.err = msg.Err
+			m.isStreaming = false
+			m.updateViewport()
+		case "text":
+			m.messages[lastIdx].content += msg.Content
+		case "thinking":
+			m.messages[lastIdx].thinking += msg.Content
+		case "tool_req":
+			m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("Tool Call: %s(%v)", msg.Name, msg.Args))
+		case "tool_res":
+			resStr := fmt.Sprintf("%v", msg.Result)
+			if len(resStr) > 500 {
+				resStr = resStr[:500] + " ... (truncated)"
+			}
+			if msg.IsError {
+				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Error (%s): %s", msg.Name, resStr))
+			} else {
+				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Result (%s): %s", msg.Name, strings.ReplaceAll(resStr, "\n", "\\n")))
+			}
+		case "telemetry":
+			if m.messages[lastIdx].telemetry == nil {
+				m.messages[lastIdx].telemetry = &llm.TelemetryPart{
+					InputTokens:     msg.Telemetry.InputTokens,
+					OutputTokens:    msg.Telemetry.OutputTokens,
+					ReasoningTokens: msg.Telemetry.ReasoningTokens,
+					Duration:        msg.Telemetry.Duration,
+				}
+			} else {
+				m.messages[lastIdx].telemetry.InputTokens += msg.Telemetry.InputTokens
+				m.messages[lastIdx].telemetry.OutputTokens += msg.Telemetry.OutputTokens
+				m.messages[lastIdx].telemetry.ReasoningTokens += msg.Telemetry.ReasoningTokens
+				m.messages[lastIdx].telemetry.Duration += msg.Telemetry.Duration
+			}
+		case "flush":
+			m.updateViewport()
+			m.viewport.GotoBottom() // Auto-scroll
+		}
 
 	case ToolApprovalRequestMsg:
 		m.pendingToolPrompt = &msg
@@ -391,7 +400,7 @@ func (m *uiModel) updateViewport() {
 	m.viewport.SetContent(strings.TrimSpace(b.String()))
 }
 
-func (m uiModel) View() string {
+func (m *uiModel) View() string {
 	if m.quit {
 		return "Chat session ended.\n"
 	}
@@ -423,12 +432,14 @@ func (m uiModel) View() string {
 
 // StartREPL begins a synchronous interactive loop wrapping the engine stream.
 func StartREPL(ctx context.Context, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer) error {
+	m := newUIModel(ctx, engine, modelName, theme, agentName, hitl)
 	p := tea.NewProgram(
-		newUIModel(ctx, engine, modelName, theme, agentName, hitl),
+		m,
 		tea.WithAltScreen(),
 		tea.WithInput(in),
 		tea.WithOutput(out),
 	)
+	m.program = p
 
 	_, err := p.Run()
 	return err
