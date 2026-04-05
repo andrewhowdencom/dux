@@ -33,18 +33,28 @@ Starts a local REPL session allowing you to chat with a mapped LLM provider from
 
 ---
 
-## `dux http serve`
-Bootstraps a local listener running health endpoints for monitoring. This listens on `:8080`.
+## `dux serve`
+Bootstraps all configured user interfaces (Web, Telegram, etc) based on the `ui` definitions in your `config.yaml`.
 
 ### Usage
 ```bash
-./dux http serve [flags]
+./dux serve [type] [flags]
 ```
 
-This starts the application and blocks your terminal while logging requests. The server automatically routes `GET: /healthz`.
+By default it spans all configured endpoints concurrently.
+
+### Flags
+| Flag         | Description                                                            | Default |
+| ------------ | ---------------------------------------------------------------------- | ------- |
+| `<type>`     | Optional positional arg (`web`, `telegram`) to filter endpoints        | none    |
+| `--agent`    | Filter which configured instances to start by targeting this bound agent | none    |
+| `--provider` | Filter by configured provider block                                    | none    |
 
 **Example**
 ```bash
-# Run the application headless
-./dux http serve
+# Start all UIs
+./dux serve
+
+# Only start configured telegram setups targeted at the "pirate" agent
+./dux serve telegram --agent="pirate"
 ```

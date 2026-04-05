@@ -27,13 +27,15 @@ type EngineFactory func(ctx context.Context, agentName string, providerID string
 
 type Server struct {
 	agentsFile    string
+	agentName     string
+	providerID    string
 	hitl          *WebHITL
 	engineFactory EngineFactory
 	sessionKey    []byte
 }
 
 // NewMux creates a new HTTP serve mux for the UI.
-func NewMux(agentsFile string) *http.ServeMux {
+func NewMux(agentsFile string, agentName string, providerID string) *http.ServeMux {
 	key, err := getOrCreateSessionKey()
 	if err != nil {
 		slog.Error("failed to load persisten session key, generating volatile key", "err", err)
@@ -44,6 +46,8 @@ func NewMux(agentsFile string) *http.ServeMux {
 	mux := http.NewServeMux()
 	srv := &Server{
 		agentsFile: agentsFile,
+		agentName:  agentName,
+		providerID: providerID,
 		hitl:       NewWebHITL(),
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
 			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
@@ -51,7 +55,6 @@ func NewMux(agentsFile string) *http.ServeMux {
 		sessionKey: key,
 	}
 
-	mux.HandleFunc("/api/agents", srv.handleAgents)
 	mux.HandleFunc("/api/session", srv.handleSession)
 	mux.HandleFunc("/api/chat", srv.handleChat)
 	mux.HandleFunc("/api/chat/approve", srv.handleApprove)
@@ -60,45 +63,6 @@ func NewMux(agentsFile string) *http.ServeMux {
 	mux.Handle("/", http.FileServer(http.FS(frontend.FS)))
 
 	return mux
-}
-
-// handleAgents returns a list of available agents
-func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	path := s.agentsFile
-	if path == "" {
-		p, err := xdg.ConfigFile("dux/agents.yaml")
-		if err != nil {
-			slog.Error("failed to get xdg config file", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		path = p
-	}
-
-	agents, err := config.LoadAgents(path)
-	if err != nil {
-		slog.Error("failed to load agents", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	providers, err := config.LoadLLMProviders()
-	if err != nil {
-		slog.Error("failed to load LLM providers", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"Agents":    agents,
-		"Providers": providers,
-	})
 }
 
 func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
@@ -168,9 +132,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		Agent     string `json:"agent"`
-		Provider  string `json:"provider"`
-		Prompt    string `json:"prompt"`
+		Prompt string `json:"prompt"`
 	}
 
 	cookie, err := r.Cookie("dux_session")
@@ -199,7 +161,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		p, _ := xdg.ConfigFile("dux/agents.yaml")
 		path = p
 	}
-	engine, _, cleanup, err := s.engineFactory(ctx, payload.Agent, payload.Provider, path, s.hitl, false)
+	engine, _, cleanup, err := s.engineFactory(ctx, s.agentName, s.providerID, path, s.hitl, false)
 	if err != nil {
 		slog.Error("failed to initialize engine", "error", err)
 		http.Error(w, fmt.Sprintf("failed to initialize engine: %v", err), http.StatusInternalServerError)

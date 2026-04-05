@@ -28,11 +28,20 @@ llm:
       type: "static"
       config: {}
 
-telegram:
-  # The API Token provided by BotFather
-  token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-  # Optional public HTTPS URL for receiving webhooks. If unset, long-polling is used.
-  webhook_url: ""
-  # Array of allowed integer Chat IDs. Users not in this list will be ignored.
-  allowed_users:
-    - 123456789
+ui:
+  - type: "telegram"
+    agent: "pirate"
+    configuration:
+      # The API Token provided by BotFather
+      token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+      # Optional public HTTPS URL for receiving webhooks. If unset, long-polling is used.
+      webhook_url: ""
+      # Array of allowed integer Chat IDs. Users not in this list will be ignored.
+      allowed_users:
+        - 123456789
+
+  - type: "web"
+    # Provide the agent target id here for the web ui to adhere to.
+    agent: "pirate"
+    configuration:
+      address: ":8080"

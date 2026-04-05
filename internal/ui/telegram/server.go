@@ -40,13 +40,18 @@ type Server struct {
 	sessions      map[int64]*Session
 
 	engineFactory EngineFactory
+	cfg           Config
 }
 
 type Config struct {
-	Token        string
-	WebhookURL   string
-	AllowedUsers []int64
-	AgentsFile   string
+	Token          string
+	WebhookURL     string
+	WebhookAddress string
+	AllowedUsers   []int64
+	AgentsFile     string
+	AgentName      string
+	ProviderID     string
+	UnsafeAllTools bool
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -68,6 +73,7 @@ func NewServer(cfg Config) (*Server, error) {
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
 			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 		},
+		cfg: cfg,
 	}, nil
 }
 
@@ -220,7 +226,7 @@ func (s *Server) handleMessage(sess *Session, msg *tgbotapi.Message) {
 			path = p
 		}
 		// Fallback to default provider/agent rules: just pass empty strings and let config system load defaults
-		eng, _, cleanup, err := s.engineFactory(sess.Ctx, "", "", path, sess.HITL, false)
+		eng, _, cleanup, err := s.engineFactory(sess.Ctx, s.cfg.AgentName, s.cfg.ProviderID, path, sess.HITL, s.cfg.UnsafeAllTools)
 		if err != nil {
 			slog.Error("failed to initialize telegram engine", "error", err)
 			out := tgbotapi.NewMessage(sess.ChatID, fmt.Sprintf("Initialization error: %v", err))

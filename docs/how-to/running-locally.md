@@ -46,11 +46,11 @@ Using `./dux chat` creates a synchronous REPL shell tied sequentially to the rec
 ./dux chat --provider="ollama-local"
 ```
 
-### The HTTP Server
-If you want to use the API routes remotely, or ensure health checks pass before deploying, you can use the built HTTP listener.
+### Serving Graphical UIs (Web, Telegram)
+If you want to use the web interface or connect your telegram bot securely, you must configure a `ui` block array within your `config.yaml` specifying bindings. Once configured, serve them asynchronously using:
 
 ```bash
-./dux http serve
+./dux serve
 ```
 
-This starts a server on `:8080` returning standard health status payloads: `http://localhost:8080/healthz`.
+This command parses the application arrays to launch concurrently running background servers according to their respective targeted `agent` rules.

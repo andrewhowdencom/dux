@@ -1,7 +1,6 @@
 const md = window.markdownit();
 
 const elements = {
-    agentSelect: document.getElementById('agentSelect'),
     chatForm: document.getElementById('chatForm'),
     promptInput: document.getElementById('promptInput'),
     sendBtn: document.getElementById('sendBtn'),
@@ -9,57 +8,17 @@ const elements = {
 };
 
 // State
-let loadedAgents = [];
 let isGenerating = false;
 
 // Initialize
-async function loadAgents() {
+async function initChat() {
     try {
         // Provision the session cookie
         await fetch('/api/session', { method: 'POST' });
-
-        const response = await fetch('/api/agents');
-        if (!response.ok) throw new Error('Failed to load agents');
-        const data = await response.json();
-        loadedAgents = data;
         
-        elements.agentSelect.innerHTML = '';
-        
-        // Add Agents Group
-        if (data.Agents && data.Agents.length > 0) {
-            const agentGroup = document.createElement('optgroup');
-            agentGroup.label = "Agents";
-            
-            data.Agents.forEach(agent => {
-                const option = document.createElement('option');
-                option.value = `agent:${agent.Name}`;
-                option.textContent = agent.Name;
-                agentGroup.appendChild(option);
-            });
-            if (agentGroup.children.length > 0) {
-                elements.agentSelect.appendChild(agentGroup);
-            }
-        }
-        
-        // Add Providers Group
-        if (data.Providers && data.Providers.length > 0) {
-            const providerGroup = document.createElement('optgroup');
-            providerGroup.label = "Raw Providers";
-            
-            data.Providers.forEach(provider => {
-                const option = document.createElement('option');
-                option.value = `provider:${provider.ID}`;
-                option.textContent = provider.ID + ` (${provider.Type})`;
-                providerGroup.appendChild(option);
-            });
-            elements.agentSelect.appendChild(providerGroup);
-        }
-        
-        elements.agentSelect.disabled = false;
         elements.sendBtn.disabled = false;
     } catch (e) {
-        console.error(e);
-        elements.agentSelect.innerHTML = '<option>Error loading agents</option>';
+        console.error("Failed to initialize session", e);
     }
 }
 
@@ -97,14 +56,6 @@ elements.chatForm.addEventListener('submit', async (e) => {
     if (isGenerating || !elements.promptInput.value.trim()) return;
     
     const prompt = elements.promptInput.value.trim();
-    const selection = elements.agentSelect.value;
-    let agent = '';
-    let provider = '';
-    if (selection.startsWith('agent:')) {
-        agent = selection.replace('agent:', '');
-    } else if (selection.startsWith('provider:')) {
-        provider = selection.replace('provider:', '');
-    }
     
     // Add user message
     const userMessageContent = createMessageBubble('user');
@@ -114,7 +65,7 @@ elements.chatForm.addEventListener('submit', async (e) => {
     elements.promptInput.value = '';
     elements.promptInput.style.height = 'auto';
     
-    await generateResponse(agent, provider, prompt);
+    await generateResponse(prompt);
 });
 
 async function resolveHitl(callId, approve, hitlElement) {
@@ -216,7 +167,7 @@ function createTelemetryFooter(contentEl, data) {
 }
 
 // Parse NDJSON Stream
-async function generateResponse(agent, provider, prompt) {
+async function generateResponse(prompt) {
     isGenerating = true;
     elements.sendBtn.disabled = true;
     elements.promptInput.disabled = true;
@@ -236,7 +187,7 @@ async function generateResponse(agent, provider, prompt) {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({agent, provider, prompt})
+            body: JSON.stringify({prompt})
         });
         
         if (!response.ok) {
@@ -292,4 +243,4 @@ async function generateResponse(agent, provider, prompt) {
 }
 
 // Start
-loadAgents();
+initChat();
