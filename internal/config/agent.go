@@ -123,22 +123,29 @@ func LoadGlobalTools() []ToolConfig {
 	var globalTools []ToolConfig
 	_ = viper.UnmarshalKey("tools", &globalTools)
 
-	hasTime := false
+	configured := make(map[string]bool)
 	for _, t := range globalTools {
-		if t.Name == "time" {
-			hasTime = true
-			break
-		}
+		configured[t.Name] = true
 	}
-	if !hasTime {
-		f := false
-		globalTools = append(globalTools, ToolConfig{
-			Name:    "time",
-			Enabled: true,
-			Requirements: ToolRequirements{
-				Supervision: &f,
-			},
-		})
+
+	stdlibTools := []string{
+		"time", "date", "stopwatch", "timer",
+		"evaluate_math", "generate_uuid", "generate_random_number",
+		"base64_encode", "base64_decode", "url_encode", "url_decode",
+		"sleep",
+	}
+
+	for _, name := range stdlibTools {
+		if !configured[name] {
+			f := false
+			globalTools = append(globalTools, ToolConfig{
+				Name:    name,
+				Enabled: true,
+				Requirements: ToolRequirements{
+					Supervision: &f,
+				},
+			})
+		}
 	}
 
 	return globalTools

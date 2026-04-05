@@ -14,7 +14,7 @@ import (
 	bashtool "github.com/andrewhowdencom/dux/pkg/llm/tool/bash"
 	filetool "github.com/andrewhowdencom/dux/pkg/llm/tool/file"
 	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
-	timetool "github.com/andrewhowdencom/dux/pkg/llm/tool/time"
+	stdlibtool "github.com/andrewhowdencom/dux/pkg/llm/tool/stdlib"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -119,11 +119,29 @@ func NewResolversFromConfig(cfgs []string) ([]llm.ToolProvider, error) {
 	for _, c := range cfgs {
 		switch c {
 		case "time":
-			staticTools = append(staticTools, timetool.New())
+			staticTools = append(staticTools, stdlibtool.New())
+		case "date":
+			staticTools = append(staticTools, stdlibtool.NewDate())
 		case "timer":
-			staticTools = append(staticTools, timetool.NewTimer())
+			staticTools = append(staticTools, stdlibtool.NewTimer())
 		case "stopwatch":
-			staticTools = append(staticTools, timetool.NewStopwatch())
+			staticTools = append(staticTools, stdlibtool.NewStopwatch())
+		case "evaluate_math":
+			staticTools = append(staticTools, stdlibtool.NewMath())
+		case "generate_uuid":
+			staticTools = append(staticTools, stdlibtool.NewUUID())
+		case "generate_random_number":
+			staticTools = append(staticTools, stdlibtool.NewRandom())
+		case "base64_encode":
+			staticTools = append(staticTools, stdlibtool.NewBase64Encode())
+		case "base64_decode":
+			staticTools = append(staticTools, stdlibtool.NewBase64Decode())
+		case "url_encode":
+			staticTools = append(staticTools, stdlibtool.NewURLEncode())
+		case "url_decode":
+			staticTools = append(staticTools, stdlibtool.NewURLDecode())
+		case "sleep":
+			staticTools = append(staticTools, stdlibtool.NewSleep())
 		case "bash":
 			staticTools = append(staticTools, bashtool.New())
 		case "file_read":

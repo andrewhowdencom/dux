@@ -3,6 +3,7 @@ module github.com/andrewhowdencom/dux
 go 1.24.3
 
 require (
+	github.com/Knetic/govaluate v3.0.0+incompatible
 	github.com/adrg/xdg v0.5.3
 	github.com/andrewhowdencom/stdlib v0.0.0-20260404221406-a9ed997ec2ec
 	github.com/charmbracelet/bubbles v1.0.0

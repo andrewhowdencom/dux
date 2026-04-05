@@ -43,7 +43,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
-	"github.com/andrewhowdencom/dux/pkg/llm/tool/time"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/stdlib"
 )
 
 // Configure core execution engine
@@ -62,7 +62,7 @@ handler := llm.NewSessionHandler(
 	receiver, 
 	sender,
 	llm.WithResolver(static.New(
-		time.New(),
+		stdlib.New(),
 	)),
 )
 
