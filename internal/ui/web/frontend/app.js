@@ -173,15 +173,17 @@ async function generateResponse(prompt) {
     elements.promptInput.disabled = true;
     
     const assistantContent = createMessageBubble('assistant');
-    let fullText = '';
-    
-    // We create a thinking element that can be toggled/removed
-    const thinkingEl = document.createElement('div');
-    thinkingEl.className = 'thinking-text';
-    assistantContent.appendChild(thinkingEl);
-    
-    const textEl = document.createElement('div');
-    assistantContent.appendChild(textEl);
+    let currentTextEl = null;
+    let currentFullText = '';
+
+    function getTextEl() {
+        if (!currentTextEl) {
+            currentTextEl = document.createElement('div');
+            assistantContent.appendChild(currentTextEl);
+            currentFullText = '';
+        }
+        return currentTextEl;
+    }
     
     try {
         const response = await fetch('/api/chat', {
@@ -212,24 +214,26 @@ async function generateResponse(prompt) {
                 try {
                     const data = JSON.parse(line);
                     if (data.type === 'text') {
-                        fullText += data.content;
-                        textEl.innerHTML = md.render(fullText);
+                        currentFullText += data.content;
+                        getTextEl().innerHTML = md.render(currentFullText);
                     } else if (data.type === 'thinking') {
                         thinkingEl.textContent += data.content;
                     } else if (data.type === 'hitl_request') {
                         createHitlBlock(assistantContent, data);
+                        currentTextEl = null; // Force new text block next time
                     } else if (data.type === 'tool_result') {
                         createToolResultBlock(assistantContent, data);
+                        currentTextEl = null; // Force new text block next time
                     } else if (data.type === 'telemetry') {
                         createTelemetryFooter(assistantContent, data);
                     } else if (data.type === 'error') {
-                        textEl.innerHTML += `<br><span style="color:var(--danger)">${data.error}</span>`;
+                        getTextEl().innerHTML += `<br><span style="color:var(--danger)">${data.error}</span>`;
                     } else if (data.type === 'command') {
                         if (data.command === '/new') {
                              fetch('/api/session', { method: 'POST' }).catch(console.error);
                              elements.chatContainer.innerHTML = '';
                              elements.chatContainer.appendChild(assistantContent);
-                             textEl.innerHTML = `<em>Started a new conversation session.</em>`;
+                             getTextEl().innerHTML = `<em>Started a new conversation session.</em>`;
                         }
                     }
                     elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;

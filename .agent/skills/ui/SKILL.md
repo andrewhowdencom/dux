@@ -17,7 +17,7 @@ Dux is built around iterative text and structured-data streams. Interfaces must 
 ### Pillar 2: Agent Lifecycle Transparency
 Advanced agents perform hidden logic. A Dux UI is responsible for visualizing this background execution natively as disjoint elements from the raw Assistant Response.
 - **Thinking / Reasoning**: You must extract and intercept reasoning tokens (`llm.ReasoningPart`) and place them in a visually distinct bounding box/element near the top of the interaction. Do not merge them into the assistant's standard text message.
-- **Tool Intentions and Results**: Track explicit tool executions (`llm.ToolRequestPart` and `llm.ToolResultPart`). Render the names of the tools and their payload/responses so the user knows what background services were interrogated.
+- **Tool Intentions and Results**: Track explicit tool executions (`llm.ToolRequestPart` and `llm.ToolResultPart`). Render the names of the tools and their payload/responses so the user knows what background services were interrogated. **Important**: Because the LLM continues reasoning in a connected internal loop after a tool finishes, you must cleanly interrupt the visual stream so that the assistant's *final* answer appears natively *after/below* the visualized tool call, rather than merging back into the preamble above it.
 - **Errors**: Render errors vividly inline (rather than crashing).
 - **Telemetry**: Provide performance/cost visibility by accumulating and rendering telemetry statistics (`llm.TelemetryPart`). Show token usage (Input, Output, Reasoning) and overall query duration sequentially.
 

@@ -82,7 +82,13 @@ func (st *StreamTracker) RenderError(err error) {
 }
 
 func (st *StreamTracker) PromptHITL(req *llm.ToolRequestPart) {
-	// Telegram natively halts and sends an inline keyboard via the HITL interceptor (TelegramHITL).
+	st.Flush()
+	
+	st.mu.Lock()
+	st.messageID = 0
+	st.text = ""
+	st.pendingUpdate = false
+	st.mu.Unlock()
 }
 
 func (st *StreamTracker) OnCommand(cmd string, args []string) {
