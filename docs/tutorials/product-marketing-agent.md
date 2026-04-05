@@ -11,7 +11,7 @@ This tutorial details how to leverage Dux as a **Product Marketing Agent** to au
 
 ## Step 1: Agent Definition
 
-In your `agents.yaml`, establish the marketing persona:
+In your `agents/<agent-name>/agent.yaml`, establish the marketing persona:
 
 ### YAML Configuration Example
 

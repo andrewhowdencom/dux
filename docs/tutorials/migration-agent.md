@@ -11,7 +11,7 @@ This tutorial demonstrates how to use Dux as a **Migration Agent** to automatica
 
 ## Step 1: The Migration Profile
 
-Set up an agent profile in `agents.yaml` designed specifically for code refactoring:
+Set up an agent profile in `agents/<agent-name>/agent.yaml` designed specifically for code refactoring:
 
 ### YAML Configuration Example
 

@@ -8,10 +8,10 @@ Dux enforces a strict boundary between its application mapping layer (`internal/
 
 ### Option 1: The CLI Flow (YAML)
 
-For users running the `dux` binary directly, agents are easily defined inside `agents.yaml`. String values are mapped dynamically via the internal `cli` package:
+For users running the `dux` binary directly, agents are easily defined inside `agents/<agent-name>/agent.yaml`. String values are mapped dynamically via the internal `cli` package:
 
 ```yaml
-# agents.yaml
+# agents/<agent-name>/agent.yaml
 - name: "qa"
   provider: "static"
   context:

@@ -17,7 +17,7 @@ Dux is a lightning-fast, highly modular execution engine for running and testing
 
 - **Rich Agentic TUI**: Run `dux chat` completely locally. Dux's beautiful `bubbletea` powered terminal UI renders responsive Markdown and distinctly tracks "thinking" (reasoning) tokens in real time.
 - **Dual-Use Architecture**: Designed as a scalable, standalone Go core (`pkg/`). Use the Dux execution engine effortlessly within your own Go applications, or run it out-of-the-box via the CLI.
-- **Declarative Agent Specifications**: Decouple system prompts, contextual enrichments, and provider mappings using lightweight `agents.yaml` specifications.
+- **Declarative Agent Specifications**: Decouple system prompts, contextual enrichments, and provider mappings using lightweight `agents/<agent-name>/agent.yaml` specifications.
 - **Strictly Typed Tool Abstractions**: Write Go functions and easily export them to LLMs directly via standard JSON Schema mappings natively supported by Go interfaces.
 - **Agnostic LLM Engine**: Implemented via a deep recursive `adapter` mapping sequence, allowing your pipeline to scale continuously across `static` testing mocks, raw `ollama` daemon inference endpoints, LiteLLM gateways, and beyond!
 - **Dynamic Viper Configurations**: Connect any provider natively via `config.yaml` using powerful generic ID-based mappings without muddying CLI source boundaries.

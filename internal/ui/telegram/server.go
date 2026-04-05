@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/pkg/llm"
@@ -34,7 +33,7 @@ type Session struct {
 type Server struct {
 	bot        *tgbotapi.BotAPI
 	whitelist  map[int64]bool
-	agentsFile string
+	agentsDir  string
 
 	sessionsMutex sync.RWMutex
 	sessions      map[int64]*Session
@@ -68,7 +67,7 @@ func NewServer(cfg Config) (*Server, error) {
 	return &Server{
 		bot:        bot,
 		whitelist:  wl,
-		agentsFile: cfg.AgentsFile,
+		agentsDir:  cfg.AgentsFile,
 		sessions:   make(map[int64]*Session),
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
 			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
@@ -220,11 +219,7 @@ func (s *Server) sessionWorker(sess *Session) {
 
 func (s *Server) handleMessage(sess *Session, msg *tgbotapi.Message) {
 	if sess.Engine == nil {
-		path := s.agentsFile
-		if path == "" {
-			p, _ := xdg.ConfigFile("dux/agents.yaml")
-			path = p
-		}
+		path := s.agentsDir
 		// Fallback to default provider/agent rules: just pass empty strings and let config system load defaults
 		eng, _, cleanup, err := s.engineFactory(sess.Ctx, s.cfg.AgentName, s.cfg.ProviderID, path, sess.HITL, s.cfg.UnsafeAllTools)
 		if err != nil {

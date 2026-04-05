@@ -11,7 +11,7 @@ This tutorial outlines how to use Dux to construct a **Customer Support Agent** 
 
 ## Step 1: Agent Configuration
 
-In your `agents.yaml` file, define the support agent profile. You can also utilize Dux's built-in "enrichers" to ensure the agent has real-time context (like the current OS or time) when talking to a user.
+In your `agents/<agent-name>/agent.yaml` file, define the support agent profile. You can also utilize Dux's built-in "enrichers" to ensure the agent has real-time context (like the current OS or time) when talking to a user.
 
 ### YAML Configuration Example
 

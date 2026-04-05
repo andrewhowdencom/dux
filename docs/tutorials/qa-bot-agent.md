@@ -11,7 +11,7 @@ This tutorial walks through configuring Dux to act as a **Q&A Bot Agent**. The g
 
 ## Step 1: Define the Agent Profile
 
-Dux allows you to define agent "personas" using an `agents.yaml` file (typically placed in standard XDG config directories like `~/.config/dux/agents.yaml`).
+Dux allows you to define agent "personas" using an `agents/<agent-name>/agent.yaml` file (typically placed in standard XDG config directories like `~/.config/dux/agents/<agent-name>/agent.yaml`).
 
 Create an entry for the Q&A Bot agent:
 

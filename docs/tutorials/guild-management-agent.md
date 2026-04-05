@@ -7,7 +7,7 @@ This tutorial explains how to use Dux to power an **Internal Guild Management Ag
 ## Prerequisites
 
 - Dux configured with a capable text-generation LLM.
-- `agents.yaml` configured.
+- `agents/<agent-name>/agent.yaml` configured.
 
 ## Step 1: Profile Setup
 

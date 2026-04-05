@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/internal/ui/web/frontend"
@@ -26,7 +25,7 @@ type Streamer interface {
 type EngineFactory func(ctx context.Context, agentName string, providerID string, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error)
 
 type Server struct {
-	agentsFile    string
+	agentsDir     string
 	agentName     string
 	providerID    string
 	hitl          *WebHITL
@@ -35,7 +34,7 @@ type Server struct {
 }
 
 // NewMux creates a new HTTP serve mux for the UI.
-func NewMux(agentsFile string, agentName string, providerID string) *http.ServeMux {
+func NewMux(agentsDir string, agentName string, providerID string) *http.ServeMux {
 	key, err := getOrCreateSessionKey()
 	if err != nil {
 		slog.Error("failed to load persisten session key, generating volatile key", "err", err)
@@ -45,7 +44,7 @@ func NewMux(agentsFile string, agentName string, providerID string) *http.ServeM
 
 	mux := http.NewServeMux()
 	srv := &Server{
-		agentsFile: agentsFile,
+		agentsDir:  agentsDir,
 		agentName:  agentName,
 		providerID: providerID,
 		hitl:       NewWebHITL(),
@@ -156,11 +155,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	ctx := llm.WithSessionID(r.Context(), sessionID)
 
 	// Create engine for this ephemeral request
-	path := s.agentsFile
-	if path == "" {
-		p, _ := xdg.ConfigFile("dux/agents.yaml")
-		path = p
-	}
+	path := s.agentsDir
 	engine, _, cleanup, err := s.engineFactory(ctx, s.agentName, s.providerID, path, s.hitl, false)
 	if err != nil {
 		slog.Error("failed to initialize engine", "error", err)

@@ -4,16 +4,18 @@ Dux allows you to construct and switch between predefined "Agents". An Agent is 
 
 By separating agent configurations from core application configuration, you can easily maintain distinct personas or specialized task runners without cluttering your core setup.
 
-## The Agents Specification File
+## The Agents Configuration Directory
 
-By default, `dux` will look for an agents specification file located at `$XDG_CONFIG_HOME/dux/agents.yaml` (usually `~/.config/dux/agents.yaml`). You can explicitly specify the file location using the `-a` or `--agents-file` global flags.
+By default, `dux` will look for an agents configuration directory located at `$XDG_CONFIG_HOME/dux/agents/` (usually `~/.config/dux/agents/`). You can explicitly specify the directory location using the `-a` or `--agents-dir` global flags.
+
+Within this directory, each agent should be placed in its own folder. The folder name acts as the conceptual unit for the agent. Inside each folder, you must define the agent using an `agent.yaml` file (`~/.config/dux/agents/<agent-name>/agent.yaml`).
 
 ### Example Configuration
 
-An agents file uses a YAML array of agent definitions. You can start by checking the `agents.example.yaml` file available in the root repository. Below is a sample configuration:
+An `agent.yaml` file uses a YAML object describing the agent. You can start by checking the `examples/dux/agents/` folder available in the root repository. Below is a sample configuration:
 
 ```yaml
-- name: "qa"
+name: "qa"
   provider: "ollama-local"
   context:
     system: |

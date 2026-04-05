@@ -3,7 +3,9 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/adrg/xdg"
 	"github.com/spf13/viper"
 
 	"gopkg.in/yaml.v3"
@@ -32,7 +34,7 @@ type ToolConfig struct {
 
 // AgentContext defines dynamic and static context to configure an agent's memory before interaction.
 type AgentContext struct {
-	Enrichers []Enricher `yaml:"enrichers,omitempty"`
+	Enrichers []Enricher   `yaml:"enrichers,omitempty"`
 	Tools     []ToolConfig `yaml:"tools,omitempty"`
 	System    string       `yaml:"system,omitempty"`
 }
@@ -55,23 +57,52 @@ type Agent struct {
 	Context  *AgentContext `yaml:"context,omitempty"`
 }
 
-// LoadAgents maps an agent specification list at a given filepath to an array of Agent objects.
-func LoadAgents(filePath string) ([]Agent, error) {
-	if filePath == "" {
-		return nil, nil // No file requested
+// ResolveAgentsDir determines the base directory for agents configuration.
+// If path is empty, it returns $XDG_CONFIG_HOME/dux/agents strictly.
+func ResolveAgentsDir(path string) string {
+	if path != "" {
+		return path
 	}
+	p, _ := xdg.ConfigFile("dux/agents")
+	return p
+}
 
-	b, err := os.ReadFile(filePath)
+// LoadAgents enumerates all folders within agentsDir, expecting an agent.yaml inside.
+func LoadAgents(agentsDir string) ([]Agent, error) {
+	dir := ResolveAgentsDir(agentsDir)
+
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil // Return empty if the default file doesn't exist
+			return nil, nil // Return empty if the agents directory doesn't exist
 		}
-		return nil, fmt.Errorf("failed to read agents file %q: %w", filePath, err)
+		return nil, fmt.Errorf("failed to read agents directory %q: %w", dir, err)
 	}
 
 	var agents []Agent
-	if err := yaml.Unmarshal(b, &agents); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal agents spec file %q: %w", filePath, err)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue // Only process subdirectories
+		}
+		
+		agentFilePath := filepath.Join(dir, entry.Name(), "agent.yaml")
+		b, err := os.ReadFile(agentFilePath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue // Skip if there's no agent.yaml in this folder
+			}
+			return nil, fmt.Errorf("failed to read agent file %q: %w", agentFilePath, err)
+		}
+
+		var agent Agent
+		if err := yaml.Unmarshal(b, &agent); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal agent spec file %q: %w", agentFilePath, err)
+		}
+		
+		// Optional: If the internal Name is missing, we could default to entry.Name() here
+		// if agent.Name == "" { agent.Name = entry.Name() }
+
+		agents = append(agents, agent)
 	}
 
 	return agents, nil

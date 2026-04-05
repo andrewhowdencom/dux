@@ -108,7 +108,7 @@ func startWebServer(ctx context.Context, uic config.UIConfig) error {
 	})
 
 	// TODO: UnsafeAllTools via Web UI config? We will pass false for now unless configured.
-	mux.Handle("/", web.NewMux(agentsFile, uic.Agent, uic.Provider))
+	mux.Handle("/", web.NewMux(agentsDir, uic.Agent, uic.Provider))
 
 	handler := loggingMiddleware(recoveryMiddleware(mux))
 
@@ -147,7 +147,7 @@ func startTelegramServer(ctx context.Context, uic config.UIConfig) error {
 		WebhookURL:     tgCfg.WebhookURL,
 		WebhookAddress: tgCfg.WebhookAddress,
 		AllowedUsers:   tgCfg.AllowedUsers,
-		AgentsFile:     agentsFile,
+		AgentsFile:     agentsDir,
 		AgentName:      uic.Agent,
 		ProviderID:     uic.Provider,
 	}

@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -35,16 +34,8 @@ var chatCmd = &cobra.Command{
 			os.Exit(0)
 		}()
 
-		var agentsFilePath = agentsFile
-		if agentsFilePath == "" {
-			path, err := xdg.ConfigFile("dux/agents.yaml")
-			if err == nil {
-				agentsFilePath = path
-			}
-		}
-
 		hitl := terminal.NewBubbleTeaHITL()
-		engine, selectedCfg, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
+		engine, selectedCfg, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsDir, hitl, unsafeAllTools)
 		if err != nil {
 			return err
 		}
