@@ -198,6 +198,23 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 				"args":    p.Args,
 			})
 			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
+		case llm.ToolResultPart:
+			err := encoder.Encode(map[string]any{
+				"type":     "tool_result",
+				"tool":     p.Name,
+				"result":   fmt.Sprintf("%v", p.Result),
+				"is_error": p.IsError,
+			})
+			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
+		case llm.TelemetryPart:
+			err := encoder.Encode(map[string]any{
+				"type":             "telemetry",
+				"input_tokens":     p.InputTokens,
+				"output_tokens":    p.OutputTokens,
+				"reasoning_tokens": p.ReasoningTokens,
+				"duration_secs":    p.Duration.Seconds(),
+			})
+			if err != nil { slog.Error("ENCODE ERROR", "err", err) }
 		default:
 			slog.Info("received unknown part type", "type", fmt.Sprintf("%T", p))
 		}

@@ -169,6 +169,49 @@ function createHitlBlock(contentEl, data) {
     elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
 }
 
+function createToolResultBlock(contentEl, data) {
+    const block = document.createElement('div');
+    block.className = 'tool-result-block';
+    
+    const header = document.createElement('div');
+    header.className = 'tool-result-header';
+    header.innerHTML = `⚙️ Tool Result: ${data.tool}`;
+    
+    const body = document.createElement('div');
+    body.className = 'tool-result-body';
+    
+    let resText = data.result;
+    if (resText.length > 500) {
+        resText = resText.substring(0, 500) + ' ... (truncated)';
+    }
+    
+    if (data.is_error) {
+        body.style.color = 'var(--danger)';
+        resText = "Error: " + resText;
+    }
+    
+    body.textContent = resText;
+    
+    block.appendChild(header);
+    block.appendChild(body);
+    contentEl.appendChild(block);
+    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+}
+
+function createTelemetryFooter(contentEl, data) {
+    const footer = document.createElement('div');
+    footer.className = 'telemetry-footer';
+    
+    let resStr = "";
+    if (data.reasoning_tokens && data.reasoning_tokens > 0) {
+        resStr = ` (including ${data.reasoning_tokens} reasoning)`;
+    }
+    
+    footer.textContent = `⚡ ${data.duration_secs.toFixed(1)}s | Tokens: ${data.input_tokens} in, ${data.output_tokens} out${resStr}`;
+    contentEl.appendChild(footer);
+    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+}
+
 // Parse NDJSON Stream
 async function generateResponse(agent, provider, prompt) {
     isGenerating = true;
@@ -221,6 +264,10 @@ async function generateResponse(agent, provider, prompt) {
                         thinkingEl.textContent += data.content;
                     } else if (data.type === 'hitl_request') {
                         createHitlBlock(assistantContent, data);
+                    } else if (data.type === 'tool_result') {
+                        createToolResultBlock(assistantContent, data);
+                    } else if (data.type === 'telemetry') {
+                        createTelemetryFooter(assistantContent, data);
                     } else if (data.type === 'error') {
                         textEl.innerHTML += `<br><span style="color:var(--danger)">${data.error}</span>`;
                     }
