@@ -104,6 +104,12 @@ func (m *uiModel) RenderTelemetry(telemetry llm.TelemetryPart) {
 	m.program.Send(uiEventMsg{Type: "telemetry", Telemetry: telemetry})
 }
 
+func (m *uiModel) OnCommand(cmd string, args []string) {
+	if cmd == "/new" {
+		m.program.Send(uiEventMsg{Type: "session_reset"})
+	}
+}
+
 func waitForHITL(ch chan ToolApprovalRequestMsg) tea.Cmd {
 	return func() tea.Msg {
 		if ch == nil {
@@ -311,6 +317,13 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.messages[lastIdx].telemetry.ReasoningTokens += msg.Telemetry.ReasoningTokens
 				m.messages[lastIdx].telemetry.Duration += msg.Telemetry.Duration
 			}
+		case "session_reset":
+			m.sessionID = uuid.New().String()
+			m.messages = []chatMessage{
+				{role: "assistant", content: "Started a new conversation session."},
+			}
+			m.textarea.Reset()
+			m.updateViewport()
 		case "flush":
 			m.updateViewport()
 			m.viewport.GotoBottom() // Auto-scroll

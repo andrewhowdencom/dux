@@ -238,6 +238,13 @@ func (s *Server) handleMessage(sess *Session, msg *tgbotapi.Message) {
 	}
 
 	st := NewStreamTracker(s.bot, sess.ChatID)
+	st.OnReset = func() {
+		s.sessionsMutex.Lock()
+		delete(s.sessions, sess.ChatID)
+		s.sessionsMutex.Unlock()
+		sess.Cancel()
+	}
+	
 	stopWorker := st.StartWorker(sess.Ctx)
 	defer stopWorker()
 

@@ -22,6 +22,8 @@ type StreamTracker struct {
 	text            string
 	pendingUpdate   bool
 	updateThrottler *time.Ticker
+
+	OnReset func()
 }
 
 func NewStreamTracker(bot *tgbotapi.BotAPI, chatID int64) *StreamTracker {
@@ -81,6 +83,16 @@ func (st *StreamTracker) RenderError(err error) {
 
 func (st *StreamTracker) PromptHITL(req *llm.ToolRequestPart) {
 	// Telegram natively halts and sends an inline keyboard via the HITL interceptor (TelegramHITL).
+}
+
+func (st *StreamTracker) OnCommand(cmd string, args []string) {
+	if cmd == "/new" {
+		if st.OnReset != nil {
+			st.OnReset()
+		}
+		st.RenderTextChunk("Started a new conversation session.")
+		st.Flush()
+	}
 }
 
 func (st *StreamTracker) Flush() {

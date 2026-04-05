@@ -265,3 +265,16 @@ func (v *WebView) RenderTelemetry(telemetry llm.TelemetryPart) {
 		slog.Error("ENCODE ERROR", "err", err)
 	}
 }
+
+func (v *WebView) OnCommand(cmd string, args []string) {
+	if cmd == "/new" {
+		err := v.encoder.Encode(map[string]any{
+			"type":    "command",
+			"command": cmd,
+			"args":    args,
+		})
+		if err != nil {
+			slog.Error("ENCODE ERROR", "err", err)
+		}
+	}
+}

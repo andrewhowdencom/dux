@@ -224,6 +224,13 @@ async function generateResponse(prompt) {
                         createTelemetryFooter(assistantContent, data);
                     } else if (data.type === 'error') {
                         textEl.innerHTML += `<br><span style="color:var(--danger)">${data.error}</span>`;
+                    } else if (data.type === 'command') {
+                        if (data.command === '/new') {
+                             fetch('/api/session', { method: 'POST' }).catch(console.error);
+                             elements.chatContainer.innerHTML = '';
+                             elements.chatContainer.appendChild(assistantContent);
+                             textEl.innerHTML = `<em>Started a new conversation session.</em>`;
+                        }
                     }
                     elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
                 } catch(e) {
