@@ -1,6 +1,8 @@
 package llm
 
-import "context"
+import (
+	"context"
+)
 
 // Tool defines an atomic executable unit that the Agent can invoke.
 type Tool interface {
@@ -12,10 +14,12 @@ type Tool interface {
 	Execute(ctx context.Context, args map[string]interface{}) (interface{}, error)
 }
 
-// ToolResolver defines how a Session or Agent discovers tools at runtime.
-// For MCP this entails a live fetch. For static tools, this returns instantly.
-type ToolResolver interface {
-	Resolve(ctx context.Context) ([]Tool, error)
+// ToolProvider represents an authorized source of executable tools.
+// It injects ToolDefinitions into the context but also provides the backing implementation.
+type ToolProvider interface {
+	Injector
+	// GetTool allows the engine to resolve an execution callback when the LLM triggers a tool.
+	GetTool(name string) (Tool, bool)
 }
 
 // ToolMiddleware provides an interceptor interface wrapping tool invocations.

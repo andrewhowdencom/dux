@@ -7,7 +7,6 @@ import (
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
-	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool"
 	"github.com/mark3labs/mcp-go/client"
@@ -27,8 +26,8 @@ func NewEngine(
 
 	var finalProvider = providerID
 	var sysPrompt string
-	var enrichers []enrich.Enricher
-	var resolvers []llm.ToolResolver
+	var enrichers []llm.Injector
+	var resolvers []llm.ToolProvider
 
 	globalTools := config.LoadGlobalTools()
 

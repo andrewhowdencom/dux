@@ -35,8 +35,28 @@ type mockResolver struct {
 	tools []llm.Tool
 }
 
-func (r *mockResolver) Resolve(ctx context.Context) ([]llm.Tool, error) {
-	return r.tools, nil
+func (r *mockResolver) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+	var parts []llm.Part
+	for _, t := range r.tools {
+		parts = append(parts, t.Definition())
+	}
+	if len(parts) == 0 {
+		return nil, nil
+	}
+	return []llm.Message{{
+		Identity:   llm.Identity{Role: "system"},
+		Parts:      parts,
+		Volatility: llm.VolatilityHigh,
+	}}, nil
+}
+
+func (r *mockResolver) GetTool(name string) (llm.Tool, bool) {
+	for _, t := range r.tools {
+		if t.Name() == name {
+			return t, true
+		}
+	}
+	return nil, false
 }
 
 // Interacting mock provider that generates a tool call on the first loop, 
@@ -110,8 +130,7 @@ func TestEngine_ToolExecution(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	stream, err := engine.Stream(ctx, llm.Message{
-		SessionID: "123",
+	stream, err := engine.Stream(llm.WithSessionID(ctx, "123"), llm.Message{
 		Identity:  llm.Identity{Role: "user"},
 		Parts:     []llm.Part{llm.TextPart("trigger")},
 	})

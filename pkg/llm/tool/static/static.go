@@ -19,7 +19,29 @@ func New(tools ...llm.Tool) *Resolver {
 	}
 }
 
-// Resolve perfectly implements the llm.ToolResolver interface for static definitions.
-func (r *Resolver) Resolve(ctx context.Context) ([]llm.Tool, error) {
-	return r.tools, nil
+// Resolve perfectly implements the llm.ToolProvider interface for static definitions.
+func (r *Resolver) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+	var parts []llm.Part
+	for _, t := range r.tools {
+		parts = append(parts, t.Definition())
+	}
+	
+	if len(parts) == 0 {
+		return nil, nil
+	}
+
+	return []llm.Message{{
+		Identity:   llm.Identity{Role: "system"},
+		Parts:      parts,
+		Volatility: llm.VolatilityHigh,
+	}}, nil
+}
+
+func (r *Resolver) GetTool(name string) (llm.Tool, bool) {
+	for _, t := range r.tools {
+		if t.Name() == name {
+			return t, true
+		}
+	}
+	return nil, false
 }

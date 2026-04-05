@@ -60,7 +60,8 @@ func (s *SessionHandler) ListenAndServe(ctx context.Context) error {
 
 // processMessage executes a single turn by passing the message to the engine.
 func (s *SessionHandler) processMessage(ctx context.Context, msg Message) {
-	streamCh, err := s.engine.Stream(ctx, msg)
+	ctxWithSession := WithSessionID(ctx, msg.SessionID)
+	streamCh, err := s.engine.Stream(ctxWithSession, msg)
 	if err != nil {
 		s.sendError(ctx, msg.SessionID, "Error generating response: "+err.Error())
 		return

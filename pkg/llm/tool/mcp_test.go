@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool"
 	"github.com/mark3labs/mcp-go/client"
 	mcp "github.com/mark3labs/mcp-go/mcp"
@@ -54,16 +55,16 @@ func TestMCPResolver_Initialization(t *testing.T) {
 		t.Fatalf("failed to create MCP resolver: %v", err)
 	}
 
-	tools, err := reg.Resolve(context.Background())
+	msgs, err := reg.Inject(context.Background(), llm.InjectQuery{})
 	if err != nil {
 		t.Fatalf("failed to resolve tools: %v", err)
 	}
 	
-	if len(tools) != 1 {
-		t.Fatalf("expected 1 definition, got %d", len(tools))
+	if len(msgs) != 1 || len(msgs[0].Parts) != 1 {
+		t.Fatalf("expected 1 definition, got parts length %d", len(msgs[0].Parts))
 	}
 
-	defPart := tools[0].Definition()
+	defPart := msgs[0].Parts[0].(llm.ToolDefinitionPart)
 	if defPart.Name != "calculator" {
 		t.Errorf("expected tool name 'calculator', got %q", defPart.Name)
 	}
@@ -91,16 +92,12 @@ func TestMCPResolver_Execute(t *testing.T) {
 		t.Fatalf("failed to create MCP resolver: %v", err)
 	}
 
-	tools, err := reg.Resolve(context.Background())
-	if err != nil {
-		t.Fatalf("failed to resolve tools: %v", err)
+	tEcho, ok := reg.GetTool("echo")
+	if !ok {
+		t.Fatalf("tool not found")
 	}
 	
-	if len(tools) != 1 {
-		t.Fatalf("expected 1 tool, got %d", len(tools))
-	}
-	
-	res, err := tools[0].Execute(context.Background(), nil)
+	res, err := tEcho.Execute(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error on execute: %v", err)
 	}

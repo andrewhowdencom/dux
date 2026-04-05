@@ -106,6 +106,15 @@ type TelemetryPart struct {
 
 func (t TelemetryPart) Type() PartType { return TypeTelemetry }
 
+type Volatility int8
+
+const (
+	VolatilityStatic Volatility = 0  // Never changes (e.g. System Prompt, Guardrails)
+	VolatilityLow    Volatility = 3  // Rarely changes (e.g. Static agent instructions)
+	VolatilityMedium Volatility = 5  // Occasional (e.g. Contextual RAG data)
+	VolatilityHigh   Volatility = 10 // Turn-by-turn (e.g. Conversation History, Tool definitions)
+)
+
 // Identity represents the exact source and nature of a message.
 type Identity struct {
 	Role string // e.g., "user", "assistant", "system", "tool"
@@ -119,6 +128,18 @@ type Message struct {
 	Identity   Identity
 	Parts      []Part // Flexible payload list instead of a rigid string
 	Attributes map[string]string
+	Volatility Volatility
+}
+
+// Text extracts all TypeText parts and joins them into a single string.
+func (m Message) Text() string {
+	var text string
+	for _, p := range m.Parts {
+		if tp, ok := p.(TextPart); ok {
+			text += string(tp)
+		}
+	}
+	return text
 }
 
 // Receiver yields incoming messages over a channel. It acts as an asynchronous producer.

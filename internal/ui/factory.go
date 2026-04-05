@@ -87,8 +87,8 @@ func NewProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error)
 }
 
 // NewEnrichersFromConfig builds an array of enrichers from raw agent configuration.
-func NewEnrichersFromConfig(cfgs []config.Enricher) ([]enrich.Enricher, error) {
-	var results []enrich.Enricher
+func NewEnrichersFromConfig(cfgs []config.Enricher) ([]llm.Injector, error) {
+	var results []llm.Injector
 
 	for _, c := range cfgs {
 		switch c.Type {
@@ -110,8 +110,8 @@ func NewEnrichersFromConfig(cfgs []config.Enricher) ([]enrich.Enricher, error) {
 }
 
 // NewResolversFromConfig builds an array of tool resolvers from string representations.
-func NewResolversFromConfig(cfgs []string) ([]llm.ToolResolver, error) {
-	var results []llm.ToolResolver
+func NewResolversFromConfig(cfgs []string) ([]llm.ToolProvider, error) {
+	var results []llm.ToolProvider
 
 	// For standard configuration strings, wrap the tool inside a static resolver
 	var staticTools []llm.Tool

@@ -5,34 +5,36 @@ import (
 	"fmt"
 	"runtime"
 	"time"
-)
 
-// Enricher defines dynamic context to be injected into the LLM conversation stream.
-type Enricher interface {
-	// Type returns the identifier for this enricher.
-	Type() string
-	// Enrich computes the dynamic text to inject based on the configured type.
-	Enrich(ctx context.Context) (string, error)
-}
+	"github.com/andrewhowdencom/dux/pkg/llm"
+)
 
 // timeEnricher provides the current system time dynamically.
 type timeEnricher struct{}
 
-func NewTime() Enricher { return &timeEnricher{} }
+func NewTime() llm.Injector { return &timeEnricher{} }
 
-func (e *timeEnricher) Type() string { return "time" }
-func (e *timeEnricher) Enrich(ctx context.Context) (string, error) {
-	return fmt.Sprintf("<enrichment type=\"time\">\nCurrent Time: %s\n</enrichment>", time.Now().Format(time.RFC3339)), nil
+func (e *timeEnricher) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+	text := fmt.Sprintf("<enrichment type=\"time\">\nCurrent Time: %s\n</enrichment>", time.Now().Format(time.RFC3339))
+	return []llm.Message{{
+		Identity:   llm.Identity{Role: "system"},
+		Parts:      []llm.Part{llm.TextPart(text)},
+		Volatility: llm.VolatilityHigh,
+	}}, nil
 }
 
 // osEnricher provides the basic operating system information dynamically.
 type osEnricher struct{}
 
-func NewOS() Enricher { return &osEnricher{} }
+func NewOS() llm.Injector { return &osEnricher{} }
 
-func (e *osEnricher) Type() string { return "os" }
-func (e *osEnricher) Enrich(ctx context.Context) (string, error) {
-	return fmt.Sprintf("<enrichment type=\"os\">\nOperating System: %s\nArchitecture: %s\n</enrichment>", runtime.GOOS, runtime.GOARCH), nil
+func (e *osEnricher) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+	text := fmt.Sprintf("<enrichment type=\"os\">\nOperating System: %s\nArchitecture: %s\n</enrichment>", runtime.GOOS, runtime.GOARCH)
+	return []llm.Message{{
+		Identity:   llm.Identity{Role: "system"},
+		Parts:      []llm.Part{llm.TextPart(text)},
+		Volatility: llm.VolatilityStatic,
+	}}, nil
 }
 
 // promptEnricher provides statically configured prompt text.
@@ -40,11 +42,15 @@ type promptEnricher struct {
 	text string
 }
 
-func NewPrompt(text string) Enricher { return &promptEnricher{text: text} }
+func NewPrompt(text string) llm.Injector { return &promptEnricher{text: text} }
 
-func (e *promptEnricher) Type() string { return "prompt" }
-func (e *promptEnricher) Enrich(ctx context.Context) (string, error) {
-	return fmt.Sprintf("<enrichment type=\"prompt\">\n%s\n</enrichment>", e.text), nil
+func (e *promptEnricher) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+	text := fmt.Sprintf("<enrichment type=\"prompt\">\n%s\n</enrichment>", e.text)
+	return []llm.Message{{
+		Identity:   llm.Identity{Role: "system"},
+		Parts:      []llm.Part{llm.TextPart(text)},
+		Volatility: llm.VolatilityStatic,
+	}}, nil
 }
 
 // guardRailEnricher provides statically configured guard rail instructions.
@@ -52,9 +58,13 @@ type guardRailEnricher struct {
 	text string
 }
 
-func NewGuardRail(text string) Enricher { return &guardRailEnricher{text: text} }
+func NewGuardRail(text string) llm.Injector { return &guardRailEnricher{text: text} }
 
-func (e *guardRailEnricher) Type() string { return "guard_rail" }
-func (e *guardRailEnricher) Enrich(ctx context.Context) (string, error) {
-	return fmt.Sprintf("<enrichment type=\"guard_rail\">\n%s\n</enrichment>", e.text), nil
+func (e *guardRailEnricher) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+	text := fmt.Sprintf("<enrichment type=\"guard_rail\">\n%s\n</enrichment>", e.text)
+	return []llm.Message{{
+		Identity:   llm.Identity{Role: "system"},
+		Parts:      []llm.Part{llm.TextPart(text)},
+		Volatility: llm.VolatilityStatic,
+	}}, nil
 }

@@ -20,15 +20,22 @@ func NewInMemory() *InMemory {
 	}
 }
 
-// GetMessages retrieves the full message history for a given session.
-func (m *InMemory) GetMessages(ctx context.Context, sessionID string) ([]llm.Message, error) {
+// Inject retrieves the full message history for a given session.
+func (m *InMemory) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	
-	// Return a copy to prevent external mutation, though since slice stores shallow values
-	// it should be reasonably safe for this naive implementation.
-	messages := make([]llm.Message, len(m.sessions[sessionID]))
-	copy(messages, m.sessions[sessionID])
+	sessionID, err := llm.SessionIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rawMessages := m.sessions[sessionID]
+	messages := make([]llm.Message, len(rawMessages))
+	for i, msg := range rawMessages {
+		msg.Volatility = llm.VolatilityHigh
+		messages[i] = msg
+	}
 	
 	return messages, nil
 }

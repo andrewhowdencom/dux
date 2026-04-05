@@ -81,11 +81,37 @@ func (r *MCPResolver) refreshCache(ctx context.Context) error {
 	return nil
 }
 
-// Resolve returns the currently cached definitions.
-func (r *MCPResolver) Resolve(ctx context.Context) ([]llm.Tool, error) {
+// Inject returns the currently cached definitions wrapped in an llm.Message.
+func (r *MCPResolver) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.tools, nil
+
+	var parts []llm.Part
+	for _, t := range r.tools {
+		parts = append(parts, t.Definition())
+	}
+
+	if len(parts) == 0 {
+		return nil, nil
+	}
+
+	return []llm.Message{{
+		Identity:   llm.Identity{Role: "system"},
+		Parts:      parts,
+		Volatility: llm.VolatilityHigh,
+	}}, nil
+}
+
+func (r *MCPResolver) GetTool(name string) (llm.Tool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, t := range r.tools {
+		if t.Name() == name {
+			return t, true
+		}
+	}
+	return nil, false
 }
 
 type mcpTool struct {

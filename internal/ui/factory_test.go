@@ -2,9 +2,11 @@ package ui
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/andrewhowdencom/dux/internal/config"
+	"github.com/andrewhowdencom/dux/pkg/llm"
 )
 
 func TestNewEnrichersFromConfig(t *testing.T) {
@@ -24,43 +26,27 @@ func TestNewEnrichersFromConfig(t *testing.T) {
 		t.Fatalf("expected 4 enrichers, got %d", len(enrichers))
 	}
 
-	if enrichers[0].Type() != "time" {
-		t.Errorf("expected type time, got %s", enrichers[0].Type())
-	}
-
-	if enrichers[1].Type() != "os" {
-		t.Errorf("expected type os, got %s", enrichers[1].Type())
-	}
-
-	if enrichers[2].Type() != "prompt" {
-		t.Errorf("expected type prompt, got %s", enrichers[2].Type())
-	}
-
-	if enrichers[3].Type() != "guard_rail" {
-		t.Errorf("expected type guard_rail, got %s", enrichers[3].Type())
-	}
-
-	// Test Enrich execution on prompt
+	// Test Inject execution on prompt
 	ctx := context.Background()
-	res, err := enrichers[2].Enrich(ctx)
+	res, err := enrichers[2].Inject(ctx, llm.InjectQuery{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expectedContent := "Do not rm -rf /."
-	if len(res) < len(expectedContent) {
-		t.Errorf("prompt enricher did not return expected content. Output: %s", res)
+	if len(res) == 0 || !strings.Contains(res[0].Text(), expectedContent) {
+		t.Errorf("prompt enricher did not return expected content. Output: %v", res)
 	}
 
-	// Test Enrich execution on guard_rail
-	resGuardRail, err := enrichers[3].Enrich(ctx)
+	// Test Inject execution on guard_rail
+	resGuardRail, err := enrichers[3].Inject(ctx, llm.InjectQuery{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expectedGuardRailContent := "Do not mention unicorns."
-	if len(resGuardRail) < len(expectedGuardRailContent) {
-		t.Errorf("guard_rail enricher did not return expected content. Output: %s", resGuardRail)
+	if len(resGuardRail) == 0 || !strings.Contains(resGuardRail[0].Text(), expectedGuardRailContent) {
+		t.Errorf("guard_rail enricher did not return expected content. Output: %v", resGuardRail)
 	}
 }
 

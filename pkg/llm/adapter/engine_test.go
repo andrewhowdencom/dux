@@ -13,7 +13,8 @@ type MemoryHistory struct {
 	messages map[string][]llm.Message
 }
 
-func (m *MemoryHistory) GetMessages(ctx context.Context, sessionID string) ([]llm.Message, error) {
+func (m *MemoryHistory) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+	sessionID, _ := llm.SessionIDFromContext(ctx)
 	return m.messages[sessionID], nil
 }
 
@@ -67,7 +68,7 @@ func TestEngine_SinglePass(t *testing.T) {
 		Parts:     []llm.Part{llm.TextPart("Weather in Tokyo?")},
 	}
 
-	stream, err := engine.Stream(ctx, inputMsg)
+	stream, err := engine.Stream(llm.WithSessionID(ctx, "session-1"), inputMsg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

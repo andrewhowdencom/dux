@@ -31,7 +31,7 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 		adapter.WithHistory(memHistory),
 		adapter.WithSystemPrompt("You are a helpful agent testing programmatic initialization."),
 		adapter.WithEnrichers(
-			[]enrich.Enricher{
+			[]llm.Injector{
 				enrich.NewTime(),
 				enrich.NewOS(),
 			},
@@ -49,7 +49,7 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 		Parts:     []llm.Part{llm.TextPart("Can you verify this setup?")},
 	}
 
-	stream, err := engine.Stream(ctx, msg)
+	stream, err := engine.Stream(llm.WithSessionID(ctx, sessionID), msg)
 	if err != nil {
 		t.Fatalf("failed to stream: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 	// 6. Assert history captured correctly
 	// Note: System prompts and Enrichments are mapped onto the `sessionID` invisibly at initialization/execution.
 	// Therefore, the persistent history should contain User Msg -> Assistant Output
-	storedMsgs, err := memHistory.GetMessages(ctx, sessionID)
+	storedMsgs, err := memHistory.Inject(llm.WithSessionID(ctx, sessionID), llm.InjectQuery{})
 	if err != nil {
 		t.Fatalf("failed fetching history: %v", err)
 	}
