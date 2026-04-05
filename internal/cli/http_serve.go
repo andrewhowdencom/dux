@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/dux/internal/ui/web"
-
+	"github.com/andrewhowdencom/stdlib/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -32,19 +32,17 @@ var httpServeCmd = &cobra.Command{
 
 		address := viper.GetString("http.address")
 
-		srv := &stdhttp.Server{
-			Addr:         address,
-			Handler:      handler,
-			WriteTimeout: 2 * time.Hour,
-			ReadTimeout:  2 * time.Hour,
-			IdleTimeout:  2 * time.Hour,
+		srv, err := http.NewServer(address, handler,
+			http.WithWriteTimeout(2*time.Hour),
+			http.WithReadTimeout(2*time.Hour),
+			http.WithIdleTimeout(2*time.Hour),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create server: %w", err)
 		}
 
 		fmt.Printf("Starting server on %s\n", address)
-		
-		// Use a simple channel for graceful shutdown or just ListenAndServe
-		// for testing CLI web UI.
-		if err := srv.ListenAndServe(); err != nil && err != stdhttp.ErrServerClosed {
+		if err := srv.Run(); err != nil {
 			return fmt.Errorf("server exited with error: %w", err)
 		}
 		return nil

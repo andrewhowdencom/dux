@@ -4,11 +4,12 @@ go 1.24.3
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/andrewhowdencom/stdlib v0.0.0-20260318094353-b5e9e0a3127a
+	github.com/andrewhowdencom/stdlib v0.0.0-20260404221406-a9ed997ec2ec
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
+	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/mark3labs/mcp-go v0.46.0
 	github.com/mitchellh/mapstructure v1.5.0
@@ -51,7 +52,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
