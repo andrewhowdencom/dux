@@ -2,6 +2,8 @@ package telegram
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -27,6 +29,12 @@ func NewTelegramHITL(bot *tgbotapi.BotAPI, chatID int64) *TelegramHITL {
 	}
 }
 
+func generateShortID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func (h *TelegramHITL) ApproveTool(ctx context.Context, req llm.ToolRequestPart) (bool, error) {
 	slog.Info("ApproveTool requested in Telegram", "call_id", req.ToolID, "tool", req.Name)
 
@@ -36,8 +44,10 @@ func (h *TelegramHITL) ApproveTool(ctx context.Context, req llm.ToolRequestPart)
 
 	msg := tgbotapi.NewMessage(h.chatID, text)
 	
-	btnApprove := tgbotapi.NewInlineKeyboardButtonData("Approve", "hitl_approve_"+req.ToolID)
-	btnDeny := tgbotapi.NewInlineKeyboardButtonData("Deny", "hitl_deny_"+req.ToolID)
+	shortID := generateShortID()
+	
+	btnApprove := tgbotapi.NewInlineKeyboardButtonData("Approve", "a_"+shortID)
+	btnDeny := tgbotapi.NewInlineKeyboardButtonData("Deny", "d_"+shortID)
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(btnApprove, btnDeny),
 	)
@@ -50,7 +60,7 @@ func (h *TelegramHITL) ApproveTool(ctx context.Context, req llm.ToolRequestPart)
 
 	resultChan := make(chan bool, 1)
 	h.mu.Lock()
-	h.pendingMap[req.ToolID] = resultChan
+	h.pendingMap[shortID] = resultChan
 	h.mu.Unlock()
 
 	var result bool
@@ -62,7 +72,7 @@ func (h *TelegramHITL) ApproveTool(ctx context.Context, req llm.ToolRequestPart)
 	}
 
 	h.mu.Lock()
-	delete(h.pendingMap, req.ToolID)
+	delete(h.pendingMap, shortID)
 	h.mu.Unlock()
 
 	return result, nil
@@ -74,11 +84,11 @@ func (h *TelegramHITL) Resolve(query *tgbotapi.CallbackQuery) error {
 	var callID string
 	var approved bool
 
-	if strings.HasPrefix(data, "hitl_approve_") {
-		callID = strings.TrimPrefix(data, "hitl_approve_")
+	if strings.HasPrefix(data, "a_") {
+		callID = strings.TrimPrefix(data, "a_")
 		approved = true
-	} else if strings.HasPrefix(data, "hitl_deny_") {
-		callID = strings.TrimPrefix(data, "hitl_deny_")
+	} else if strings.HasPrefix(data, "d_") {
+		callID = strings.TrimPrefix(data, "d_")
 		approved = false
 	} else {
 		return fmt.Errorf("unknown callback data: %s", data)
