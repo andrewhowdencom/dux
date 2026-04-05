@@ -25,7 +25,7 @@ func (t *ListTool) Name() string { return "file_list" }
 func (t *ListTool) Definition() llm.ToolDefinitionPart {
 	return llm.ToolDefinitionPart{
 		Name:        t.Name(),
-		Description: "Lists files and directories at the specified path. Limits output to a maximum number of files to prevent context cutoff. Silently skips hidden files (starting with '.') by default unless include_hidden is set to true.",
+		Description: "Lists files and directories at the specified path. Limits output to a maximum number of files to prevent context cutoff. Silently skips hidden files (starting with '.') by default unless include_hidden is set to true.\n\n### Examples\n\n**Example 1: List user home directory**\n```json\n{\n  \"path\": \"/home/user\"\n}\n```\n\n**Example 2: List current directory including hidden files**\n```json\n{\n  \"path\": \".\",\n  \"include_hidden\": true\n}\n```",
 		Parameters: json.RawMessage(`{
 			"type": "object",
 			"properties": {

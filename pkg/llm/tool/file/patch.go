@@ -23,7 +23,7 @@ func (t *PatchTool) Name() string { return "file_patch" }
 func (t *PatchTool) Definition() llm.ToolDefinitionPart {
 	return llm.ToolDefinitionPart{
 		Name:        t.Name(),
-		Description: "Edits an existing file by replacing a specific snippet of text. The original_snippet must exactly match the text in the file, including whitespace and line breaks. Will fail if the snippet is not found or is found multiple times.",
+		Description: "Edits an existing file by replacing a specific snippet of text. The original_snippet must exactly match the text in the file, including whitespace and line breaks. Will fail if the snippet is not found or is found multiple times.\n\n### Examples\n\n**Example 1: Replace a function call**\n```json\n{\n  \"path\": \"main.go\",\n  \"original_snippet\": \"fmt.Println(\\\"Hello\\\")\",\n  \"replacement_snippet\": \"fmt.Println(\\\"Hello, World!\\\")\"\n}\n```",
 		Parameters: json.RawMessage(`{
 			"type": "object",
 			"properties": {

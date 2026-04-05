@@ -23,7 +23,7 @@ func (t *WriteTool) Name() string { return "file_write" }
 func (t *WriteTool) Definition() llm.ToolDefinitionPart {
 	return llm.ToolDefinitionPart{
 		Name:        t.Name(),
-		Description: "Creates a new file or completely overwrites an existing file with the provided content. Parent directories will be automatically created.",
+		Description: "Creates a new file or completely overwrites an existing file with the provided content. Parent directories will be automatically created.\n\n### Examples\n\n**Example 1: Create a simple text file**\n```json\n{\n  \"path\": \"hello.txt\",\n  \"content\": \"Hello, World!\\nThis is a new file.\"\n}\n```",
 		Parameters: json.RawMessage(`{
 			"type": "object",
 			"properties": {

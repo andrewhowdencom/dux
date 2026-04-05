@@ -23,7 +23,7 @@ func (t *BashTool) Name() string { return "bash" }
 func (t *BashTool) Definition() llm.ToolDefinitionPart {
 	return llm.ToolDefinitionPart{
 		Name:        t.Name(),
-		Description: "Executes an arbitrary bash command and returns its standard output and standard error.",
+		Description: "Executes an arbitrary bash command and returns its standard output and standard error.\n\n### Examples\n\n**Example 1: List directory contents**\n```json\n{\n  \"command\": \"ls -la\"\n}\n```\n\n**Example 2: Check current working directory**\n```json\n{\n  \"command\": \"pwd\"\n}\n```",
 		Parameters: json.RawMessage(`{
 			"type": "object",
 			"properties": {

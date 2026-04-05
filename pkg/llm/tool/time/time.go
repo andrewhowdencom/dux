@@ -21,7 +21,7 @@ func (t *TimeTool) Name() string { return "get_current_time" }
 func (t *TimeTool) Definition() llm.ToolDefinitionPart {
 	return llm.ToolDefinitionPart{
 		Name:        t.Name(),
-		Description: "Returns the current system time in RFC3339 format. Useful when you need to know what time it is.",
+		Description: "Returns the current system time in RFC3339 format. Useful when you need to know what time it is.\n\n### Examples\n\n**Example 1: basic usage**\n```json\n{}\n```",
 		Parameters:  json.RawMessage(`{"type":"object","properties":{}}`),
 	}
 }

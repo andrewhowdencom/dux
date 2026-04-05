@@ -27,7 +27,7 @@ func (t *ReadTool) Name() string { return "file_read" }
 func (t *ReadTool) Definition() llm.ToolDefinitionPart {
 	return llm.ToolDefinitionPart{
 		Name:        t.Name(),
-		Description: "Reads the contents of a file. By default reads up to 800 lines. Use start_line and end_line for pagination on larger files. Will refuse to read binary files.",
+		Description: "Reads the contents of a file. By default reads up to 800 lines. Use start_line and end_line for pagination on larger files. Will refuse to read binary files.\n\n### Examples\n\n**Example 1: Read entire file (if under 800 lines)**\n```json\n{\n  \"path\": \"config.yaml\"\n}\n```\n\n**Example 2: Read specific lines**\n```json\n{\n  \"path\": \"main.go\",\n  \"start_line\": 10,\n  \"end_line\": 50\n}\n```",
 		Parameters: json.RawMessage(`{
 			"type": "object",
 			"properties": {

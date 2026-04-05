@@ -231,9 +231,10 @@ func buildGeminiRequest(messages []llm.Message) ([]*genai.Content, *genai.Genera
 					},
 				})
 			case llm.ToolDefinitionPart:
+				var schema *genai.Schema
 				if len(part.Parameters) > 0 {
-					var raw map[string]any
-					_ = json.Unmarshal(part.Parameters, &raw)
+					schema = &genai.Schema{}
+					_ = json.Unmarshal(part.Parameters, schema)
 				}
 				
 				tool := &genai.Tool{
@@ -241,6 +242,7 @@ func buildGeminiRequest(messages []llm.Message) ([]*genai.Content, *genai.Genera
 						{
 							Name:        part.Name,
 							Description: part.Description,
+							Parameters:  schema,
 						},
 					},
 				}
