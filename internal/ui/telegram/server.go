@@ -151,6 +151,17 @@ func (s *Server) processUpdate(update tgbotapi.Update) {
 	}
 
 	sess := s.getSession(chatID)
+
+	if update.CallbackQuery != nil {
+		go func() {
+			err := sess.HITL.Resolve(update.CallbackQuery)
+			if err != nil {
+				slog.Error("failed to resolve callback query", "error", err)
+			}
+		}()
+		return
+	}
+
 	select {
 	case sess.Queue <- update:
 		// Queued successfully
@@ -193,15 +204,6 @@ func (s *Server) sessionWorker(sess *Session) {
 		case <-sess.Ctx.Done():
 			return
 		case update := <-sess.Queue:
-			if update.CallbackQuery != nil {
-				// Handle HITL Callback
-				err := sess.HITL.Resolve(update.CallbackQuery)
-				if err != nil {
-					slog.Error("failed to resolve callback query", "error", err)
-				}
-				continue
-			}
-
 			if update.Message != nil && update.Message.Text != "" {
 				s.handleMessage(sess, update.Message)
 			}
