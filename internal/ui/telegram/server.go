@@ -172,7 +172,8 @@ func (s *Server) getSession(chatID int64) *Session {
 	}
 
 	hitl := NewTelegramHITL(s.bot, chatID)
-	ctx, cancel := context.WithCancel(context.Background())
+	baseCtx, cancel := context.WithCancel(context.Background())
+	ctx := llm.WithSessionID(baseCtx, fmt.Sprintf("telegram-%d", chatID))
 	sess := &Session{
 		ChatID: chatID,
 		Queue:  make(chan tgbotapi.Update, 10),
@@ -228,6 +229,7 @@ func (s *Server) handleMessage(sess *Session, msg *tgbotapi.Message) {
 	}
 
 	input := llm.Message{
+		SessionID: fmt.Sprintf("telegram-%d", sess.ChatID),
 		Identity: llm.Identity{Role: "user"},
 		Parts: []llm.Part{
 			llm.TextPart(msg.Text),
