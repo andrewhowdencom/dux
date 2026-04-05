@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
 	"github.com/muesli/reflow/wordwrap"
 )
 
@@ -40,6 +41,7 @@ type uiModel struct {
 	modelName  string
 	theme      string
 	agentName  string
+	sessionID  string
 
 	viewport viewport.Model
 	textarea textarea.Model
@@ -130,6 +132,7 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentN
 		spinner:   s,
 		renderer:  rend,
 		messages:  []chatMessage{},
+		sessionID: uuid.New().String(),
 		hitl:      hitl,
 	}
 }
@@ -200,11 +203,12 @@ func (m uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Create stream context
 			streamCtx, cancel := context.WithCancel(m.ctx)
+			streamCtx = llm.WithSessionID(streamCtx, m.sessionID)
 			m.cancelFunc = cancel
 
 			// Send to LLM
 			llmMsg := llm.Message{
-				SessionID: "cli-session",
+				SessionID: m.sessionID,
 				Identity:  llm.Identity{Role: "user"},
 				Parts:     []llm.Part{llm.TextPart(v)},
 			}

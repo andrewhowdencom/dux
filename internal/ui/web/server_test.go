@@ -52,9 +52,13 @@ func TestHandleChat_StreamingNDJSON(t *testing.T) {
 		return mockEng, &config.InstanceConfig{}, func() {}, nil
 	}
 
+	key := make([]byte, 32)
+	enc, _ := encryptSessionID(key, "test-session")
+
 	srv := &Server{
 		hitl:          NewWebHITL(),
 		engineFactory: factory,
+		sessionKey:    key,
 	}
 
 	payload := map[string]string{
@@ -64,6 +68,7 @@ func TestHandleChat_StreamingNDJSON(t *testing.T) {
 	b, _ := json.Marshal(payload)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader(b))
+	req.AddCookie(&http.Cookie{Name: "dux_session", Value: enc})
 	rec := httptest.NewRecorder()
 
 	srv.handleChat(rec, req)
@@ -103,15 +108,20 @@ func TestHandleChat_EngineError(t *testing.T) {
 		return nil, nil, nil, errors.New("engine bootstrap error")
 	}
 
+	key := make([]byte, 32)
+	enc, _ := encryptSessionID(key, "test-session")
+
 	srv := &Server{
 		hitl:          NewWebHITL(),
 		engineFactory: factory,
+		sessionKey:    key,
 	}
 
 	payload := map[string]string{"agent": "test-agent", "prompt": "Say hello"}
 	b, _ := json.Marshal(payload)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader(b))
+	req.AddCookie(&http.Cookie{Name: "dux_session", Value: enc})
 	rec := httptest.NewRecorder()
 
 	srv.handleChat(rec, req)

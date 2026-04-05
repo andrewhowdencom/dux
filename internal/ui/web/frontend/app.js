@@ -15,6 +15,9 @@ let isGenerating = false;
 // Initialize
 async function loadAgents() {
     try {
+        // Provision the session cookie
+        await fetch('/api/session', { method: 'POST' });
+
         const response = await fetch('/api/agents');
         if (!response.ok) throw new Error('Failed to load agents');
         const data = await response.json();

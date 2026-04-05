@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/internal/ui/web/frontend"
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/google/uuid"
 )
 
 // Streamer interface abstracts the physical Engine for testing
@@ -25,10 +28,18 @@ type Server struct {
 	agentsFile    string
 	hitl          *WebHITL
 	engineFactory EngineFactory
+	sessionKey    []byte
 }
 
 // NewMux creates a new HTTP serve mux for the UI.
 func NewMux(agentsFile string) *http.ServeMux {
+	key, err := getOrCreateSessionKey()
+	if err != nil {
+		slog.Error("failed to load persisten session key, generating volatile key", "err", err)
+		key = make([]byte, 32)
+		_, _ = io.ReadFull(rand.Reader, key)
+	}
+
 	mux := http.NewServeMux()
 	srv := &Server{
 		agentsFile: agentsFile,
@@ -36,9 +47,11 @@ func NewMux(agentsFile string) *http.ServeMux {
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
 			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 		},
+		sessionKey: key,
 	}
 
 	mux.HandleFunc("/api/agents", srv.handleAgents)
+	mux.HandleFunc("/api/session", srv.handleSession)
 	mux.HandleFunc("/api/chat", srv.handleChat)
 	mux.HandleFunc("/api/chat/approve", srv.handleApprove)
 
@@ -87,6 +100,28 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	sessionID := uuid.New().String()
+	enc, err := encryptSessionID(s.sessionKey, sessionID)
+	if err != nil {
+		slog.Error("failed to encrypt session ID", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "dux_session",
+		Value:    enc,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+	})
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -96,6 +131,19 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		CallID  string `json:"call_id"`
 		Approve bool   `json:"approve"`
+	}
+
+	cookie, err := r.Cookie("dux_session")
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	_, err = decryptSessionID(s.sessionKey, cookie.Value)
+	if err != nil {
+		slog.Info("invalid dux_session cookie provided in approval req", "err", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -119,9 +167,21 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		Agent    string `json:"agent"`
-		Provider string `json:"provider"`
-		Prompt   string `json:"prompt"`
+		Agent     string `json:"agent"`
+		Provider  string `json:"provider"`
+		Prompt    string `json:"prompt"`
+	}
+
+	cookie, err := r.Cookie("dux_session")
+	if err != nil {
+		http.Error(w, "unauthorized: missing session", http.StatusUnauthorized)
+		return
+	}
+	sessionID, err := decryptSessionID(s.sessionKey, cookie.Value)
+	if err != nil {
+		slog.Info("invalid dux_session cookie during chat stream", "error", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -130,13 +190,15 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := llm.WithSessionID(r.Context(), sessionID)
+
 	// Create engine for this ephemeral request
 	path := s.agentsFile
 	if path == "" {
 		p, _ := xdg.ConfigFile("dux/agents.yaml")
 		path = p
 	}
-	engine, _, cleanup, err := s.engineFactory(r.Context(), payload.Agent, payload.Provider, path, s.hitl, false)
+	engine, _, cleanup, err := s.engineFactory(ctx, payload.Agent, payload.Provider, path, s.hitl, false)
 	if err != nil {
 		slog.Error("failed to initialize engine", "error", err)
 		http.Error(w, fmt.Sprintf("failed to initialize engine: %v", err), http.StatusInternalServerError)
@@ -158,13 +220,14 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		msg := llm.Message{
-			Identity: llm.Identity{Role: "user"},
+			SessionID: sessionID,
+			Identity:  llm.Identity{Role: "user"},
 			Parts: []llm.Part{
 				llm.TextPart(payload.Prompt),
 			},
 		}
 
-		out, err := engine.Stream(r.Context(), msg)
+		out, err := engine.Stream(ctx, msg)
 		if err != nil {
 			errChan <- err
 			return
