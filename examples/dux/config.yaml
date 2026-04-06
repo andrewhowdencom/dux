@@ -45,3 +45,13 @@ ui:
     agent: "pirate"
     configuration:
       address: ":8080"
+
+tools:
+  # The 'stdlib' suite of computational tools is active for all agents by default.
+  # This includes: time, date, stopwatch, timer, evaluate_math, 
+  # generate_uuid, generate_random_number, base64_encode, base64_decode, 
+  # url_encode, url_decode, sleep.
+  #
+  # You can explicitly disable or alter the properties of any global standard tool:
+  # - name: "sleep"
+  #   enabled: false
