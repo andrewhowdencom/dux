@@ -9,8 +9,8 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
-	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
 func TestEngineE2EProgrammaticGo(t *testing.T) {
@@ -23,7 +23,7 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 	}
 
 	// 2. Initialize History storage
-	memHistory := workmem.NewInMemory()
+	memHistory := working.NewInMemory()
 
 	// 3. Initialize the Engine using Variadic Options
 	engine := adapter.New(

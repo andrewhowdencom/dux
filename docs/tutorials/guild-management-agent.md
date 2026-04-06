@@ -32,12 +32,12 @@ If you're building a Slack bot or internal web service to handle guild managemen
 ```go
 import (
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
-	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
 engine := adapter.New(
 	adapter.WithProvider(prv),
-	adapter.WithWorkingMemory(workmem.NewInMemory()),
+	adapter.WithWorkingMemory(working.NewInMemory()),
 	adapter.WithSystemPrompt("You are the Lead Administrator for the internal Engineering Guild..."),
 )
 ```

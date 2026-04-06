@@ -8,7 +8,9 @@ import (
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
-	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/semantic"
+	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
 // NewEngine creates an adapter.Engine using the given parameters and global configuration configurations.
@@ -64,9 +66,21 @@ func NewEngine(
 
 	timeouts := make(map[string]time.Duration)
 
+	var semanticToolNames []string
+
 	for name, t := range toolMap {
 		if !t.Enabled {
 			continue
+		}
+
+		if t.Requirements.Supervision != nil {
+			requiresSupervision[name] = *t.Requirements.Supervision
+		} else {
+			if len(name) >= 9 && name[:9] == "semantic_" {
+				requiresSupervision[name] = false
+			} else {
+				requiresSupervision[name] = true
+			}
 		}
 
 		if t.TimeoutSeconds != nil {
@@ -77,14 +91,10 @@ func NewEngine(
 			timeouts[name] = 5 * time.Second
 		}
 
-		if t.Requirements.Supervision != nil {
-			requiresSupervision[name] = *t.Requirements.Supervision
-		} else {
-			requiresSupervision[name] = true
-		}
-
 		if t.MCP != nil {
 			mcpConfigs = append(mcpConfigs, t)
+		} else if len(name) >= 9 && name[:9] == "semantic_" {
+			semanticToolNames = append(semanticToolNames, name)
 		} else {
 			nativeToolNames = append(nativeToolNames, name)
 		}
@@ -113,7 +123,17 @@ func NewEngine(
 	}
 	resolvers = append(resolvers, mcpResolvers...)
 
-	mem := workmem.NewInMemory()
+	if len(semanticToolNames) > 0 {
+		var dbPath = ":memory:" // Default to in-memory for now
+		store, err := sqlite.NewStore(dbPath)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
+		}
+		semProvider := semantic.NewProvider(store)
+		resolvers = append(resolvers, semProvider)
+	}
+
+	mem := working.NewInMemory()
 
 	// Ensure hitl is provided; we can still wrap with unsafeAllTools flag
 	hitlMiddleware := llm.NewHITLMiddleware(hitl, requiresSupervision, unsafeAllTools)

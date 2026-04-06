@@ -32,12 +32,12 @@ You can trigger this agent programmatically within an automated build/release pi
 ```go
 import (
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
-	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
 engine := adapter.New(
 	adapter.WithProvider(prv), 
-	adapter.WithWorkingMemory(workmem.NewInMemory()),
+	adapter.WithWorkingMemory(working.NewInMemory()),
 	adapter.WithSystemPrompt("You are an elite Product Marketing Manager mapping technical outputs to compelling copy..."),
 )
 ```

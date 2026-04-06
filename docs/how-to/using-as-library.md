@@ -38,7 +38,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
-	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
 )
 
@@ -55,7 +55,7 @@ func main() {
 	// Notice how we explicitly call explicit constructors instead of resolving strings.
 	engine := adapter.New(
 		adapter.WithProvider(prv),
-		adapter.WithWorkingMemory(workmem.NewInMemory()),
+		adapter.WithWorkingMemory(working.NewInMemory()),
 		adapter.WithSystemPrompt("You are a helpful agent."),
 		adapter.WithEnrichers(
 			enrich.NewTime(),

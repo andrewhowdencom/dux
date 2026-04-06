@@ -35,13 +35,13 @@ Dux natively supports operating as an embedded library rather than just a CLI. Y
 ```go
 import (
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
-	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
 // Assume `prv` is your initialized provider (e.g. ollama.New(...))
 engine := adapter.New(
 	adapter.WithProvider(prv),
-	adapter.WithWorkingMemory(workmem.NewInMemory()),
+	adapter.WithWorkingMemory(working.NewInMemory()),
 	adapter.WithSystemPrompt("You are a precise, helpful Q&A Bot. Your job is to answer user questions based on the provided context..."),
 )
 ```

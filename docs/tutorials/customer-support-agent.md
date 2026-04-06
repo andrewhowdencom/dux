@@ -41,7 +41,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
-	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/stdlib"
 )
@@ -49,7 +49,7 @@ import (
 // Configure core execution engine
 engine := adapter.New(
 	adapter.WithProvider(prv), // Pre-configured provider
-	adapter.WithWorkingMemory(workmem.NewInMemory()),
+	adapter.WithWorkingMemory(working.NewInMemory()),
 	adapter.WithSystemPrompt("You are a helpful, empathetic Customer Support Assistant..."),
 	adapter.WithEnrichers([]enrich.Enricher{
 		enrich.NewOS(),

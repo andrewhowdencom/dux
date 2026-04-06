@@ -42,6 +42,10 @@ name: "qa"
           supervision: true
       - name: "file_list"
         enabled: true
+      - name: "semantic_write"
+        enabled: true
+      - name: "semantic_read"
+        enabled: true
   triggers:
     - type: chat
     - type: schedule
