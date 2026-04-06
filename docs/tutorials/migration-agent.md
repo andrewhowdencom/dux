@@ -32,12 +32,12 @@ To programmatically integrate this refactoring logic into a larger automated cod
 ```go
 import (
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
-	"github.com/andrewhowdencom/dux/pkg/llm/history"
+	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
 )
 
 engine := adapter.New(
 	adapter.WithProvider(prv), // High-capability provider
-	adapter.WithHistory(history.NewInMemory()),
+	adapter.WithWorkingMemory(workmem.NewInMemory()),
 	adapter.WithSystemPrompt("You are an expert Software Engineer specializing in codebase migrations..."),
 )
 ```

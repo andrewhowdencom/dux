@@ -1,4 +1,4 @@
-package history
+package workmem
 
 import (
 	"context"
@@ -7,16 +7,18 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 )
 
-// InMemory provides a naive, memory-backed implementation of the History interface.
+// InMemory provides a naive, memory-backed implementation of the WorkingMemory interface.
 type InMemory struct {
-	mu       sync.RWMutex
-	sessions map[string][]llm.Message
+	mu         sync.RWMutex
+	sessions   map[string][]llm.Message
+	processors []Processor
 }
 
 // NewInMemory initializes a new InMemory history repository.
-func NewInMemory() *InMemory {
+func NewInMemory(processors ...Processor) *InMemory {
 	return &InMemory{
-		sessions: make(map[string][]llm.Message),
+		sessions:   make(map[string][]llm.Message),
+		processors: processors,
 	}
 }
 
@@ -40,11 +42,22 @@ func (m *InMemory) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message
 	return messages, nil
 }
 
-// Append adds a new message to the existing session history.
+// Append adds a new message to the existing session history and runs processors.
 func (m *InMemory) Append(ctx context.Context, sessionID string, msg llm.Message) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	
-	m.sessions[sessionID] = append(m.sessions[sessionID], msg)
+	msgs := append(m.sessions[sessionID], msg)
+
+	// Execute processing pipeline (Consolidators -> Compactors)
+	for _, p := range m.processors {
+		var err error
+		msgs, err = p.Process(ctx, sessionID, msgs)
+		if err != nil {
+			return err
+		}
+	}
+
+	m.sessions[sessionID] = msgs
 	return nil
 }

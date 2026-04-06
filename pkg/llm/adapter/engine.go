@@ -26,8 +26,8 @@ func WithInjector(i llm.Injector) Option {
 	}
 }
 
-// WithHistory sets the engine's history backend.
-func WithHistory(h llm.Injector) Option {
+// WithWorkingMemory sets the engine's working memory backend.
+func WithWorkingMemory(h llm.Injector) Option {
 	return WithInjector(h)
 }
 
@@ -144,8 +144,8 @@ func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initial
 	}
 
 	// We might need an explicit way for history to capture these!
-	// For now, if an injector implements history.History, we can trigger append.
-	// But history should be isolated. This will need a callback or specific History injector interface.
+	// For now, if an injector implements workmem.WorkingMemory, we can trigger append.
+	// But history should be isolated. This will need a callback or specific WorkingMemory injector interface.
 	for _, inj := range e.injectors {
 		if appendable, ok := inj.(interface{
 			Append(ctx context.Context, sessionID string, msg llm.Message) error

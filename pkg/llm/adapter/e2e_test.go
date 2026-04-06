@@ -9,7 +9,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
-	"github.com/andrewhowdencom/dux/pkg/llm/history"
+	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider/static"
 )
 
@@ -23,12 +23,12 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 	}
 
 	// 2. Initialize History storage
-	memHistory := history.NewInMemory()
+	memHistory := workmem.NewInMemory()
 
 	// 3. Initialize the Engine using Variadic Options
 	engine := adapter.New(
 		adapter.WithProvider(prv),
-		adapter.WithHistory(memHistory),
+		adapter.WithWorkingMemory(memHistory),
 		adapter.WithSystemPrompt("You are a helpful agent testing programmatic initialization."),
 		adapter.WithEnrichers(
 			[]llm.Injector{

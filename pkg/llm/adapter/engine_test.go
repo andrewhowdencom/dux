@@ -58,7 +58,7 @@ func TestEngine_SinglePass(t *testing.T) {
 	}
 
 	engine := adapter.New(
-		adapter.WithHistory(hist),
+		adapter.WithWorkingMemory(hist),
 		adapter.WithProvider(provider),
 	)
 

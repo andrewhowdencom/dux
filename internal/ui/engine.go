@@ -8,7 +8,7 @@ import (
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
-	"github.com/andrewhowdencom/dux/pkg/llm/history"
+	"github.com/andrewhowdencom/dux/pkg/llm/workmem"
 )
 
 // NewEngine creates an adapter.Engine using the given parameters and global configuration configurations.
@@ -113,7 +113,7 @@ func NewEngine(
 	}
 	resolvers = append(resolvers, mcpResolvers...)
 
-	mem := history.NewInMemory()
+	mem := workmem.NewInMemory()
 
 	// Ensure hitl is provided; we can still wrap with unsafeAllTools flag
 	hitlMiddleware := llm.NewHITLMiddleware(hitl, requiresSupervision, unsafeAllTools)
@@ -121,7 +121,7 @@ func NewEngine(
 
 	opts := []adapter.Option{
 		adapter.WithProvider(prv),
-		adapter.WithHistory(mem),
+		adapter.WithWorkingMemory(mem),
 		adapter.WithSystemPrompt(sysPrompt),
 		adapter.WithEnrichers(enrichers),
 		adapter.WithToolMiddleware(hitlMiddleware),
