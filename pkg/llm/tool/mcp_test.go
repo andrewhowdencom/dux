@@ -50,7 +50,7 @@ func TestMCPResolver_Initialization(t *testing.T) {
 		},
 	}
 
-	reg, err := tool.NewMCPResolver(context.Background(), mockClient)
+	reg, err := tool.NewMCPResolver(context.Background(), "mock", mockClient)
 	if err != nil {
 		t.Fatalf("failed to create MCP resolver: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestMCPResolver_Execute(t *testing.T) {
 		},
 	}
 
-	reg, err := tool.NewMCPResolver(context.Background(), mockClient)
+	reg, err := tool.NewMCPResolver(context.Background(), "mock", mockClient)
 	if err != nil {
 		t.Fatalf("failed to create MCP resolver: %v", err)
 	}

@@ -35,3 +35,23 @@ Creates a new file or completely overwrites an existing file with the provided c
 Edits an existing file by replacing a specific snippet of text.
 - **Behavior**: The `original_snippet` must exactly match the text in the file. Cross-platform robustness normalizes both file content and prompt inputs (`\r\n` to `\n`) before replacement to prevent line-ending match failures. If the snippet count does not equal exactly 1, the patch fails to prevent ambiguous or destructive partial modifications.
 - **Constraints**: Typically configured with `supervision: true`.
+
+## Tool Bundles & Supervision (CEL)
+
+With `dux` agents configuration, tools natively group together into broader **namespaces** or **bundles** (`stdlib`, `filesystem`, `semantic`). Instead of enabling `file_read` and `file_write` individually, simply specify `name: "filesystem"` in your agent tools configuration. 
+
+You can control execution privileges per tool bundle securely using [Common Expression Language (CEL)](https://github.com/google/cel-spec).
+
+### Example Configuration
+```yaml
+tools:
+  - name: "filesystem"
+    enabled: true
+    requirements:
+      # Evaluates to true/false using `tool_name` or even tool `args`
+      supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
+```
+
+By default:
+- Unmapped tools or invalid CEL expressions fail-secure to `supervision: true`.
+- Evaluated runtime policies provide safe granular automation over destructive processes.

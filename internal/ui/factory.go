@@ -118,52 +118,23 @@ func NewEnrichersFromConfig(cfgs []config.Enricher) ([]llm.Injector, error) {
 func NewResolversFromConfig(cfgs []string) ([]llm.ToolProvider, error) {
 	var results []llm.ToolProvider
 
-	// For standard configuration strings, wrap the tool inside a static resolver
-	var staticTools []llm.Tool
-
 	for _, c := range cfgs {
 		switch c {
-		case "time":
-			staticTools = append(staticTools, stdlibtool.New())
-		case "date":
-			staticTools = append(staticTools, stdlibtool.NewDate())
-		case "timer":
-			staticTools = append(staticTools, stdlibtool.NewTimer())
-		case "stopwatch":
-			staticTools = append(staticTools, stdlibtool.NewStopwatch())
-		case "evaluate_math":
-			staticTools = append(staticTools, stdlibtool.NewMath())
-		case "generate_uuid":
-			staticTools = append(staticTools, stdlibtool.NewUUID())
-		case "generate_random_number":
-			staticTools = append(staticTools, stdlibtool.NewRandom())
-		case "base64_encode":
-			staticTools = append(staticTools, stdlibtool.NewBase64Encode())
-		case "base64_decode":
-			staticTools = append(staticTools, stdlibtool.NewBase64Decode())
-		case "url_encode":
-			staticTools = append(staticTools, stdlibtool.NewURLEncode())
-		case "url_decode":
-			staticTools = append(staticTools, stdlibtool.NewURLDecode())
-		case "sleep":
-			staticTools = append(staticTools, stdlibtool.NewSleep())
+		case "stdlib":
+			results = append(results, static_resolver.New(
+				"stdlib",
+				stdlibtool.New(), stdlibtool.NewDate(), stdlibtool.NewTimer(), stdlibtool.NewStopwatch(),
+				stdlibtool.NewMath(), stdlibtool.NewUUID(), stdlibtool.NewRandom(),
+				stdlibtool.NewBase64Encode(), stdlibtool.NewBase64Decode(),
+				stdlibtool.NewURLEncode(), stdlibtool.NewURLDecode(), stdlibtool.NewSleep(),
+			))
+		case "filesystem":
+			results = append(results, static_resolver.New("filesystem", filetool.NewRead(), filetool.NewWrite(), filetool.NewPatch(), filetool.NewList()))
 		case "bash":
-			staticTools = append(staticTools, bashtool.New())
-		case "file_read":
-			staticTools = append(staticTools, filetool.NewRead())
-		case "file_write":
-			staticTools = append(staticTools, filetool.NewWrite())
-		case "file_patch":
-			staticTools = append(staticTools, filetool.NewPatch())
-		case "file_list":
-			staticTools = append(staticTools, filetool.NewList())
+			results = append(results, static_resolver.New("bash", bashtool.New()))
 		default:
-			return nil, fmt.Errorf("unknown tool name: %s", c)
+			return nil, fmt.Errorf("unknown tool bundle/name: %s", c)
 		}
-	}
-
-	if len(staticTools) > 0 {
-		results = append(results, static_resolver.New(staticTools...))
 	}
 
 	return results, nil
@@ -246,7 +217,7 @@ func NewMCPResolversFromConfig(ctx context.Context, agentName string, mcpConfigs
 		}
 		mcpClients = append(mcpClients, mcpClient)
 
-		r, err := tool.NewMCPResolver(ctx, mcpClient)
+		r, err := tool.NewMCPResolver(ctx, t.Name, mcpClient)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("failed to bind MCP resolver %q: %w", t.Name, err)

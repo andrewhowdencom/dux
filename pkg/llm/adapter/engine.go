@@ -241,11 +241,13 @@ func (e *Engine) executeToolWithMiddleware(ctx context.Context, req llm.ToolRequ
 	}
 
 	var targetTool llm.Tool
+	var namespace string
 	// Search through ToolProviders
 	for _, inj := range e.injectors {
 		if tp, ok := inj.(llm.ToolProvider); ok {
 			if t, found := tp.GetTool(req.Name); found {
 				targetTool = t
+				namespace = tp.Namespace()
 				break
 			}
 		}
@@ -256,6 +258,8 @@ func (e *Engine) executeToolWithMiddleware(ctx context.Context, req llm.ToolRequ
 		resultPart.IsError = true
 		return resultPart
 	}
+
+	evalCtx := context.WithValue(ctx, llm.ContextKeyNamespace, namespace)
 
 	// Build the middleware execution chain backwards
 	executionFunc := func(c context.Context) (interface{}, error) {
@@ -270,7 +274,7 @@ func (e *Engine) executeToolWithMiddleware(ctx context.Context, req llm.ToolRequ
 		}
 	}
 
-	res, err := executionFunc(ctx)
+	res, err := executionFunc(evalCtx)
 	if err != nil {
 		resultPart.Result = err.Error()
 		resultPart.IsError = true

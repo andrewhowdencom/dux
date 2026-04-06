@@ -67,14 +67,11 @@ instructions: >
   You have access to a semantic memory store that allows you to safely persist and recall facts.
 
 tools:
-  - name: "semantic_write"
+  - name: "semantic"
     enabled: true
-  - name: "semantic_read"
-    enabled: true
-  - name: "semantic_search"
-    enabled: true
-  - name: "semantic_delete"
-    enabled: true
+    requirements:
+      # Memory operations are safe autonomously 
+      supervision: false
   - name: "bash"
     enabled: true
     timeout_seconds: 30
@@ -82,9 +79,9 @@ tools:
 
 ### About Semantic Memory Tools
 
-By enabling the `semantic_*` tools, your agent gains the ability to interact with the built-in Entity-Attribute-Value (EAV) store! Dux is incredibly developer-friendly regarding this storage implementation:
-- **Zero-Touch Migrations**: As soon as Dux resolves a `semantic_` agent tool under the hood, the internal SQLite driver intelligently provisions and manages migrations (creating indices and `semmem_facts` tables) automatically.
-- **Zero-Touch Execution**: Memory ops are completely transparent. If enabled, the `RequiresSupervision` flag strictly defaults to `false` preventing annoying Human-in-the-Loop loops when the agent decides it wants to store your preferred timezone quietly in the background!
+By enabling the `semantic` tool bundle, your agent immediately gains access to a full suite of read, write, search, and delete functions interacting with the built-in Entity-Attribute-Value (EAV) store!
+- **Zero-Touch Migrations**: As soon as Dux resolves the `semantic` bundle under the hood, the internal SQLite driver intelligently provisions and manages migrations (creating indices and `semmem_facts` tables) automatically.
+- **Zero-Touch Execution**: In the YAML configuration above, we set `supervision: false`. Instead of prompting you incessantly through a Human-In-The-Loop system, the agent will gracefully write and recall variables completely autonomously in the background! You could also restrict writes dynamically to require approval via Common Expression Language (CEL) policies.
 
 ## 5. Running the Engine
 

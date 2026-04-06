@@ -19,7 +19,7 @@ type Enricher struct {
 
 // ToolRequirements details specific execution protections for a given tool.
 type ToolRequirements struct {
-	Supervision *bool `yaml:"supervision,omitempty"`
+	Supervision any   `yaml:"supervision,omitempty"` // Boolean or CEL string
 	Sandbox     *bool `yaml:"sandbox,omitempty"`
 }
 
@@ -136,24 +136,14 @@ func LoadGlobalTools() []ToolConfig {
 		configured[t.Name] = true
 	}
 
-	stdlibTools := []string{
-		"time", "date", "stopwatch", "timer",
-		"evaluate_math", "generate_uuid", "generate_random_number",
-		"base64_encode", "base64_decode", "url_encode", "url_decode",
-		"sleep",
-	}
-
-	for _, name := range stdlibTools {
-		if !configured[name] {
-			f := false
-			globalTools = append(globalTools, ToolConfig{
-				Name:    name,
-				Enabled: true,
-				Requirements: ToolRequirements{
-					Supervision: &f,
-				},
-			})
-		}
+	if !configured["stdlib"] {
+		globalTools = append(globalTools, ToolConfig{
+			Name:    "stdlib",
+			Enabled: true,
+			Requirements: ToolRequirements{
+				Supervision: false,
+			},
+		})
 	}
 
 	return globalTools

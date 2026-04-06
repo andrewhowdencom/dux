@@ -9,14 +9,20 @@ import (
 // Resolver returns a fixed slice of instantiated tools.
 // Useful for built-in framework tools or programmatic library integrations.
 type Resolver struct {
-	tools []llm.Tool
+	namespace string
+	tools     []llm.Tool
 }
 
 // New returns a resolver explicitly scoped to the provided tools.
-func New(tools ...llm.Tool) *Resolver {
+func New(namespace string, tools ...llm.Tool) *Resolver {
 	return &Resolver{
-		tools: tools,
+		namespace: namespace,
+		tools:     tools,
 	}
+}
+
+func (r *Resolver) Namespace() string {
+	return r.namespace
 }
 
 // Resolve perfectly implements the llm.ToolProvider interface for static definitions.

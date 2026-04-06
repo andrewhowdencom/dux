@@ -26,26 +26,23 @@ name: "qa"
       - type: "time"
       - type: "os"
     tools:
+      - name: "stdlib"
+        enabled: true
+        requirements:
+          supervision: false
       - name: "bash"
         enabled: true
         requirements:
-          supervision: true
-      - name: "file_read"
-        enabled: true
-      - name: "file_write"
-        enabled: true
-        requirements:
-          supervision: true
-      - name: "file_patch"
+          # CEL policy replacing boolean supervision
+          supervision: "!(args.command.startsWith('ls '));"
+      - name: "filesystem"
         enabled: true
         requirements:
-          supervision: true
-      - name: "file_list"
+          supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
+      - name: "semantic"
         enabled: true
-      - name: "semantic_write"
-        enabled: true
-      - name: "semantic_read"
-        enabled: true
+        requirements:
+          supervision: "tool_name == 'semantic_write' || tool_name == 'semantic_delete'"
   triggers:
     - type: chat
     - type: schedule

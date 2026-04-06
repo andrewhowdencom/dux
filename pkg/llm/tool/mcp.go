@@ -14,15 +14,17 @@ import (
 
 // MCPResolver adapts an MCP client to the llm.ToolResolver interface.
 type MCPResolver struct {
-	client client.MCPClient
-	mu     sync.RWMutex
-	tools  []llm.Tool
+	namespace string
+	client    client.MCPClient
+	mu        sync.RWMutex
+	tools     []llm.Tool
 }
 
 // NewMCPResolver creates a new MCPResolver bound to the provided MCP client.
-func NewMCPResolver(ctx context.Context, c client.MCPClient) (*MCPResolver, error) {
+func NewMCPResolver(ctx context.Context, namespace string, c client.MCPClient) (*MCPResolver, error) {
 	r := &MCPResolver{
-		client: c,
+		namespace: namespace,
+		client:    c,
 	}
 
 	if err := r.refreshCache(ctx); err != nil {
@@ -100,6 +102,10 @@ func (r *MCPResolver) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Mess
 		Parts:      parts,
 		Volatility: llm.VolatilityHigh,
 	}}, nil
+}
+
+func (r *MCPResolver) Namespace() string {
+	return r.namespace
 }
 
 func (r *MCPResolver) GetTool(name string) (llm.Tool, bool) {

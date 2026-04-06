@@ -50,6 +50,8 @@ func (r *mockResolver) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Mes
 	}}, nil
 }
 
+func (r *mockResolver) Namespace() string { return "mock" }
+
 func (r *mockResolver) GetTool(name string) (llm.Tool, bool) {
 	for _, t := range r.tools {
 		if t.Name() == name {

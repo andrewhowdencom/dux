@@ -187,6 +187,11 @@ func (p *Provider) Inject(ctx context.Context, query llm.InjectQuery) ([]llm.Mes
 	return nil, nil // we do not inject passive messages
 }
 
+// Namespace implements llm.ToolProvider
+func (p *Provider) Namespace() string {
+	return "semantic"
+}
+
 // GetTool implements llm.ToolProvider
 func (p *Provider) GetTool(name string) (llm.Tool, bool) {
 	t, ok := p.tools[name]

@@ -14,10 +14,13 @@ type Tool interface {
 	Execute(ctx context.Context, args map[string]interface{}) (interface{}, error)
 }
 
+const ContextKeyNamespace contextKey = "tool_namespace"
+
 // ToolProvider represents an authorized source of executable tools.
 // It injects ToolDefinitions into the context but also provides the backing implementation.
 type ToolProvider interface {
 	Injector
+	Namespace() string
 	// GetTool allows the engine to resolve an execution callback when the LLM triggers a tool.
 	GetTool(name string) (Tool, bool)
 }

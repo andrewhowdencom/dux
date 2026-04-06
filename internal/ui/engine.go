@@ -31,7 +31,7 @@ func NewEngine(
 	globalTools := config.LoadGlobalTools()
 
 	toolMap := make(map[string]config.ToolConfig)
-	requiresSupervision := make(map[string]bool)
+	requiresSupervision := make(map[string]interface{})
 
 	for _, t := range globalTools {
 		toolMap[t.Name] = t
@@ -74,7 +74,7 @@ func NewEngine(
 		}
 
 		if t.Requirements.Supervision != nil {
-			requiresSupervision[name] = *t.Requirements.Supervision
+			requiresSupervision[name] = t.Requirements.Supervision
 		} else {
 			if len(name) >= 9 && name[:9] == "semantic_" {
 				requiresSupervision[name] = false
