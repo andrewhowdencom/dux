@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/dux/internal/config"
+	"github.com/andrewhowdencom/dux/internal/ui/slack"
 	"github.com/andrewhowdencom/dux/internal/ui/telegram"
 	"github.com/andrewhowdencom/dux/internal/ui/web"
 	"github.com/andrewhowdencom/stdlib/http"
@@ -75,6 +76,10 @@ var serveCmd = &cobra.Command{
 			case "telegram":
 				g.Go(func() error {
 					return startTelegramServer(gCtx, uiConf)
+				})
+			case "slack":
+				g.Go(func() error {
+					return startSlackServer(gCtx, uiConf)
 				})
 			default:
 				slog.Warn("Unknown UI type in config", "type", uiConf.Type)
@@ -167,6 +172,32 @@ func startTelegramServer(ctx context.Context, uic config.UIConfig) error {
 	}
 
 	slog.Info("Starting Telegram Bot with Long-Polling", "agent", uic.Agent, "provider", uic.Provider)
+	return srv.Start(ctx)
+}
+
+func startSlackServer(ctx context.Context, uic config.UIConfig) error {
+	slackCfg, err := uic.ParseSlackConfig()
+	if err != nil {
+		return fmt.Errorf("failed to parse slack config: %w", err)
+	}
+
+	cfg := slack.Config{
+		AppToken:       slackCfg.AppToken,
+		BotToken:       slackCfg.BotToken,
+		SigningSecret:  slackCfg.SigningSecret,
+		WebhookURL:     slackCfg.WebhookURL,
+		WebhookAddress: slackCfg.WebhookAddress,
+		ReplyMode:      slackCfg.ReplyMode,
+		AgentsFile:     agentsDir,
+		AgentName:      uic.Agent,
+		ProviderID:     uic.Provider,
+	}
+
+	srv, err := slack.NewServer(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create slack server: %w", err)
+	}
+
 	return srv.Start(ctx)
 }
 

@@ -57,6 +57,33 @@ func (c *UIConfig) ParseWebConfig() (*WebUIConfig, error) {
 	return &cfg, nil
 }
 
+type SlackUIConfig struct {
+	AppToken       string `mapstructure:"app_token"`
+	BotToken       string `mapstructure:"bot_token"`
+	SigningSecret  string `mapstructure:"signing_secret"`
+	WebhookURL     string `mapstructure:"webhook_url"`
+	WebhookAddress string `mapstructure:"webhook_address"`
+	ReplyMode      string `mapstructure:"reply_mode"`
+}
+
+func (c *UIConfig) ParseSlackConfig() (*SlackUIConfig, error) {
+	var cfg SlackUIConfig
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:  &cfg,
+		TagName: "mapstructure",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := decoder.Decode(c.Configuration); err != nil {
+		return nil, err
+	}
+	if cfg.ReplyMode == "" {
+		cfg.ReplyMode = "mentioned" // Default to only replying when mentioned
+	}
+	return &cfg, nil
+}
+
 func LoadUIs() ([]UIConfig, error) {
 	var uis []UIConfig
 	if err := viper.UnmarshalKey("ui", &uis); err != nil {

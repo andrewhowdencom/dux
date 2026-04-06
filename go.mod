@@ -1,6 +1,6 @@
 module github.com/andrewhowdencom/dux
 
-go 1.24.3
+go 1.25
 
 require (
 	github.com/Knetic/govaluate v3.0.0+incompatible
@@ -21,6 +21,7 @@ require (
 	github.com/ollama/ollama v0.19.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sashabaranov/go-openai v1.41.2
+	github.com/slack-go/slack v0.21.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
