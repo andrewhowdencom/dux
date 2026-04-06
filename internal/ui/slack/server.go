@@ -241,10 +241,7 @@ func (s *Server) routeMessage(channelID, threadTS, msgTS, userID, text string, i
 		threadTS = msgTS // Start a new thread or use the message TS as thread root natively
 	}
 
-	sessID := channelID
-	if threadTS != "" && threadTS != msgTS {
-		sessID = channelID + "-" + threadTS
-	}
+	sessID := channelID + "-" + threadTS
 
 	sess := s.getSession(sessID, channelID, threadTS)
 

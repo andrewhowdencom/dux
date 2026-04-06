@@ -93,7 +93,7 @@ func NewEngine(
 
 		if t.MCP != nil {
 			mcpConfigs = append(mcpConfigs, t)
-		} else if len(name) >= 9 && name[:9] == "semantic_" {
+		} else if name == "semantic" || (len(name) >= 9 && name[:9] == "semantic_") {
 			semanticToolNames = append(semanticToolNames, name)
 		} else {
 			nativeToolNames = append(nativeToolNames, name)
