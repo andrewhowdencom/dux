@@ -3,16 +3,12 @@ package ui
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/history"
-	"github.com/andrewhowdencom/dux/pkg/llm/tool"
-	"github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
-	"time"
 )
 
 // NewEngine creates an adapter.Engine using the given parameters and global configuration configurations.
@@ -111,85 +107,11 @@ func NewEngine(
 	}
 
 	// Initialize MCP Tool Resolvers
-	var mcpClients []*client.Client
-	cleanup := func() {
-		for _, c := range mcpClients {
-			_ = c.Close()
-		}
+	mcpResolvers, cleanup, err := NewMCPResolversFromConfig(ctx, agentName, mcpConfigs)
+	if err != nil {
+		return nil, nil, nil, err
 	}
-
-	for _, t := range mcpConfigs {
-		var mcpClient *client.Client
-		var clientErr error
-		s := t.MCP
-
-		transportType := s.Transport
-		if transportType == "" {
-			if s.Command != "" {
-				transportType = "stdio"
-			} else if s.URL != "" {
-				transportType = "streamable_http"
-			}
-		}
-
-		switch transportType {
-		case "stdio":
-			env := make([]string, 0, len(s.Env))
-			for k, v := range s.Env {
-				env = append(env, fmt.Sprintf("%s=%s", k, v))
-			}
-			mcpClient, clientErr = client.NewStdioMCPClient(s.Command, env, s.Args...)
-		case "sse":
-			var opts []transport.ClientOption
-			if s.Headers != nil {
-				opts = append(opts, transport.WithHeaders(s.Headers))
-			}
-			mcpClient, clientErr = client.NewSSEMCPClient(s.URL, opts...)
-			if clientErr == nil {
-				clientErr = mcpClient.Start(ctx)
-			}
-		case "streamable_http":
-			var opts []transport.StreamableHTTPCOption
-			if s.Headers != nil {
-				opts = append(opts, transport.WithHTTPHeaders(s.Headers))
-			}
-			var tport *transport.StreamableHTTP
-			tport, clientErr = transport.NewStreamableHTTP(s.URL, opts...)
-			if clientErr == nil {
-				mcpClient = client.NewClient(tport)
-				clientErr = mcpClient.Start(ctx)
-			}
-		default:
-			clientErr = fmt.Errorf("unsupported or missing MCP transport type: %q", transportType)
-		}
-
-		if clientErr != nil {
-			cleanup()
-			return nil, nil, nil, fmt.Errorf("failed to create MCP client for %q: %w", t.Name, clientErr)
-		}
-
-		// Initialize
-		initReq := mcp.InitializeRequest{}
-		initReq.Params.ProtocolVersion = "2024-11-05"
-
-		mcpName := agentName
-		if mcpName == "" {
-			mcpName = "dux"
-		}
-		initReq.Params.ClientInfo = mcp.Implementation{Name: mcpName, Version: "1.0.0"}
-		if _, err := mcpClient.Initialize(ctx, initReq); err != nil {
-			cleanup()
-			return nil, nil, nil, fmt.Errorf("failed to initialize MCP client %q: %w", t.Name, err)
-		}
-		mcpClients = append(mcpClients, mcpClient)
-
-		r, err := tool.NewMCPResolver(ctx, mcpClient)
-		if err != nil {
-			cleanup()
-			return nil, nil, nil, fmt.Errorf("failed to bind MCP resolver %q: %w", t.Name, err)
-		}
-		resolvers = append(resolvers, r)
-	}
+	resolvers = append(resolvers, mcpResolvers...)
 
 	mem := history.NewInMemory()
 
