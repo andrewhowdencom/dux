@@ -12,6 +12,7 @@ import (
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"time"
 )
 
 // NewEngine creates an adapter.Engine using the given parameters and global configuration configurations.
@@ -65,9 +66,19 @@ func NewEngine(
 	var nativeToolNames []string
 	var mcpConfigs []config.ToolConfig
 
+	timeouts := make(map[string]time.Duration)
+
 	for name, t := range toolMap {
 		if !t.Enabled {
 			continue
+		}
+
+		if t.TimeoutSeconds != nil {
+			timeouts[name] = time.Duration(*t.TimeoutSeconds) * time.Second
+		} else if t.MCP != nil {
+			timeouts[name] = 300 * time.Second
+		} else {
+			timeouts[name] = 5 * time.Second
 		}
 
 		if t.Requirements.Supervision != nil {
@@ -184,6 +195,7 @@ func NewEngine(
 
 	// Ensure hitl is provided; we can still wrap with unsafeAllTools flag
 	hitlMiddleware := llm.NewHITLMiddleware(hitl, requiresSupervision, unsafeAllTools)
+	timeoutMiddleware := llm.NewTimeoutMiddleware(timeouts, 5*time.Second)
 
 	opts := []adapter.Option{
 		adapter.WithProvider(prv),
@@ -191,6 +203,7 @@ func NewEngine(
 		adapter.WithSystemPrompt(sysPrompt),
 		adapter.WithEnrichers(enrichers),
 		adapter.WithToolMiddleware(hitlMiddleware),
+		adapter.WithToolMiddleware(timeoutMiddleware),
 	}
 	for _, r := range resolvers {
 		opts = append(opts, adapter.WithResolver(r))

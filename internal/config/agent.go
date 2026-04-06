@@ -26,10 +26,11 @@ type ToolRequirements struct {
 // ToolConfig maps a specific tool and its deployment requirements.
 // A tool can be either a locally built-in tool or an external MCP server.
 type ToolConfig struct {
-	Name         string           `yaml:"name"`
-	Enabled      bool             `yaml:"enabled"`
-	Requirements ToolRequirements `yaml:"requirements,omitempty"`
-	MCP          *MCPServer       `yaml:"mcp,omitempty"`
+	Name           string           `yaml:"name"`
+	Enabled        bool             `yaml:"enabled"`
+	TimeoutSeconds *int             `yaml:"timeout_seconds,omitempty"`
+	Requirements   ToolRequirements `yaml:"requirements,omitempty"`
+	MCP            *MCPServer       `yaml:"mcp,omitempty"`
 }
 
 // AgentContext defines dynamic and static context to configure an agent's memory before interaction.
