@@ -25,8 +25,11 @@ go build
 # Set up your environment (Targeting your local Ollama)
 cp config.example.yaml ~/.config/dux/config.yaml
 
-# Enter the Matrix
-./dux chat --provider="ollama-local"
+# Start a multi-modal Agent
+./dux run qa
+
+# Or execute a one-shot query
+echo "What time is it?" | ./dux invoke qa
 ```
 
 ## Documentation

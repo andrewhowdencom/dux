@@ -42,6 +42,13 @@ name: "qa"
           supervision: true
       - name: "file_list"
         enabled: true
+  triggers:
+    - type: chat
+    - type: schedule
+      config:
+        cron: "@every 5m"
+        topic: "qa_health"
+        prompt: "Run health diagnostic"
 
 - name: "writer"
   provider: "openai"
@@ -82,13 +89,32 @@ name: "qa"
             *   `env` (map): Arbitrary key/value pairs for local subprocess environment variables.
             *   `url` (string): Absolute URL endpoint targeting an `sse` event stream. (If provided, takes precedence over `command`).
             *   `headers` (map): Arbitrary key/value HTTP headers (e.g., Authorization) sent to remote `sse` servers.
+*   `triggers` (array): A list of execution paradigms the agent should bind to when launched via `dux run`.
+    *   `type` (string): The trigger class (e.g., `chat`, `schedule`, `event`, `timer`).
+    *   `config` (map): Arbitrary configuration payload for the specific trigger.
+        *   (Schedule requires `cron`, `topic`, `prompt`. Event requires `topic`.)
 
-## Using an Agent in the CLI
+## Interacting with Agents
 
-To invoke a specific agent, pass the `--agent` flag to the `chat` subcommand:
+**Run Background & Interactive Triggers:**
+To spin up all triggers configured for a specific agent (like background schedules alongside interactive chat), use:
 
 ```bash
-dux chat --agent devops
+dux run qa
 ```
 
-> **Note:** The `--agent` flag is mutually exclusive with the `--provider` flag. If you specify an agent, `dux` will internally fallback to the provider configured in the agent's YAML definition!
+**Immediate One-Shots (Stdin):**
+To submit a raw snippet to an agent in a background context without invoking Bubbletea REPL, pipe into `invoke`:
+
+```bash
+echo "Check system status" | dux invoke qa
+```
+
+**Single Chat Session:**
+To strictly invoke an interactive `chat` session explicitly:
+
+```bash
+dux chat --agent qa
+```
+
+> **Note:** The `--agent` flag in chat limits execution to just the REPL context. Use `dux run` for the full multi-modal Trigger experience.

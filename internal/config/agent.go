@@ -55,6 +55,13 @@ type Agent struct {
 	Name     string        `yaml:"name"`
 	Provider string        `yaml:"provider"`
 	Context  *AgentContext `yaml:"context,omitempty"`
+	Triggers []Trigger     `yaml:"triggers,omitempty"`
+}
+
+// Trigger represents a configuration for defining how an agent starts.
+type Trigger struct {
+	Type   string            `yaml:"type"`
+	Config map[string]string `yaml:"config,omitempty"`
 }
 
 // ResolveAgentsDir determines the base directory for agents configuration.
