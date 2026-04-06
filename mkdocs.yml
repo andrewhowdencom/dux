@@ -1,6 +1,6 @@
 site_name: Dux Documentation
 site_description: Fast harness for agents. Latin for "guide".
-site_url: ""
+site_url: "https://dux.lahb.work"
 
 theme:
   name: material
