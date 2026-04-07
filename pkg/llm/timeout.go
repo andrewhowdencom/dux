@@ -11,7 +11,13 @@ import (
 // explicit mapping inside timeouts, it is forcefully unblocked and an error is returned.
 func NewTimeoutMiddleware(timeouts map[string]time.Duration, defaultTimeout time.Duration) ToolMiddleware {
 	return func(ctx context.Context, req ToolRequestPart, next func(ctx context.Context) (interface{}, error)) (interface{}, error) {
+		namespace, _ := ctx.Value(ContextKeyNamespace).(string)
+		
 		timeout, exists := timeouts[req.Name]
+		if !exists && namespace != "" {
+			timeout, exists = timeouts[namespace]
+		}
+		
 		if !exists {
 			timeout = defaultTimeout
 		}

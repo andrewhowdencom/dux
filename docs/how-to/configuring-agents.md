@@ -84,6 +84,7 @@ name: "qa"
     *   `tools` (array): A list of local or remote MCP tools to bind to the agent context.
         *   `name` (string): Identifier for the tool or MCP server.
         *   `enabled` (bool): Whether the tool is active.
+        *   `timeout_seconds` (int, *optional*): Set a maximum execution time limit. Defaults to `5` for native tools, and `300` for MCP servers.
         *   `mcp` (object): Options for an external Model Context Protocol server.
             *   `command` (string): Command to execute a local server in `stdio` mode (e.g., `npx`).
             *   `args` (array): Arguments passed to the `command` (e.g., `["-y", "@modelcontextprotocol/server-filesystem", "/src"]`).
