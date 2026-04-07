@@ -40,6 +40,7 @@ nav:
   - How-To Guides:
     - "Running Locally": how-to/running-locally.md
     - "Configuring Agents": how-to/configuring-agents.md
+    - "Configuring MCP Servers": how-to/configuring-mcp.md
     - "Configuring Slack UI": how-to/slack-ui.md
     - "Using as Go Library": how-to/using-as-library.md
   - Reference:

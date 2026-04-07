@@ -83,7 +83,9 @@ func (s *Store) Search(ctx context.Context, attribute, value string) ([]semantic
 	if err != nil {
 		return nil, fmt.Errorf("failed to search facts: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var facts []semantic.Fact
 	for rows.Next() {
