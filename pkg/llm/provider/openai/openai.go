@@ -175,6 +175,26 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 	return out, nil
 }
 
+// GenerateEmbeddings implements the Embedder interface for OpenAI.
+func (p *Provider) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+	req := openai.EmbeddingRequest{
+		Input: texts,
+		Model: openai.EmbeddingModel(p.model),
+	}
+
+	resp, err := p.client.CreateEmbeddings(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate openai embeddings: %w", err)
+	}
+
+	embeddings := make([][]float32, len(resp.Data))
+	for i, d := range resp.Data {
+		embeddings[i] = d.Embedding
+	}
+
+	return embeddings, nil
+}
+
 // ListModels returns a list of available models from the OpenAI-compatible endpoint.
 func (p *Provider) ListModels(ctx context.Context) ([]string, error) {
 	resp, err := p.client.ListModels(ctx)
@@ -198,6 +218,7 @@ func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage,
 		var textContent string
 		var thinkingContent string
 		var toolCalls []openai.ToolCall
+		var toolResults []llm.ToolResultPart
 
 		// Translate dux roles to openai roles
 		role := m.Identity.Role
@@ -211,8 +232,6 @@ func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage,
 		case "system":
 			role = openai.ChatMessageRoleSystem
 		}
-
-		var toolCallID string
 
 		for _, p := range m.Parts {
 			switch part := p.(type) {
@@ -231,11 +250,7 @@ func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage,
 					},
 				})
 			case llm.ToolResultPart:
-				b, _ := json.Marshal(part.Result)
-				textContent += string(b)
-				if part.ToolID != "" {
-					toolCallID = part.ToolID
-				}
+				toolResults = append(toolResults, part)
 			case llm.ToolDefinitionPart:
 				// Map ToolDefinitionPart to reqTools
 				var parameters interface{}
@@ -259,13 +274,43 @@ func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage,
 			}
 		}
 
-		if textContent != "" || thinkingContent != "" || len(toolCalls) > 0 {
+		// Tool results expect a strict correspondence (1 message per result)
+		if len(toolResults) > 0 {
+			for _, tr := range toolResults {
+				// Anthropic/LiteLLM cannot tolerate empty content strings from tool results.
+				// By json marshaling without a string wrapper, we get reliable string conversion.
+				var content string
+				if s, ok := tr.Result.(string); ok {
+					content = s
+				} else {
+					b, _ := json.Marshal(tr.Result)
+					content = string(b)
+				}
+				
+				if content == "" || content == "null" {
+					content = "{}" // Safe fallback
+				}
+
+				reqMessages = append(reqMessages, openai.ChatCompletionMessage{
+					Role:       openai.ChatMessageRoleTool, // Must explicitly be the 'tool' role
+					Content:    content,
+					ToolCallID: tr.ToolID,
+				})
+			}
+			// If there happens to be stray text attached to the same logic frame, emit as user
+			if textContent != "" || thinkingContent != "" {
+				reqMessages = append(reqMessages, openai.ChatCompletionMessage{
+					Role:             openai.ChatMessageRoleUser,
+					Content:          textContent,
+					ReasoningContent: thinkingContent,
+				})
+			}
+		} else if textContent != "" || thinkingContent != "" || len(toolCalls) > 0 {
 			msg := openai.ChatCompletionMessage{
 				Role:             role,
 				Content:          textContent,
 				ReasoningContent: thinkingContent,
 				ToolCalls:        toolCalls,
-				ToolCallID:       toolCallID,
 			}
 			reqMessages = append(reqMessages, msg)
 		}

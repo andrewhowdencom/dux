@@ -110,6 +110,26 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 	return out, nil
 }
 
+// GenerateEmbeddings implements the Embedder interface for Gemini.
+func (p *Provider) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+	var contents []*genai.Content
+	for _, text := range texts {
+		contents = append(contents, genai.Text(text)...)
+	}
+
+	resp, err := p.client.Models.EmbedContent(ctx, p.model, contents, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate gemini embeddings: %w", err)
+	}
+
+	embeddings := make([][]float32, 0, len(resp.Embeddings))
+	for _, e := range resp.Embeddings {
+		embeddings = append(embeddings, e.Values)
+	}
+
+	return embeddings, nil
+}
+
 func (p *Provider) ListModels(ctx context.Context) ([]string, error) {
 	var models []string
 

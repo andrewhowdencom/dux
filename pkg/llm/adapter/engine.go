@@ -13,7 +13,7 @@ import (
 // tools, and conversation history.
 type Engine struct {
 	injectors    []llm.Injector
-	provider     provider.ChatGenerator
+	provider     provider.Generator
 	middlewares  []llm.ToolMiddleware
 }
 
@@ -32,7 +32,7 @@ func WithWorkingMemory(h llm.Injector) Option {
 }
 
 // WithProvider sets the core LLM inference provider.
-func WithProvider(p provider.ChatGenerator) Option {
+func WithProvider(p provider.Generator) Option {
 	return func(e *Engine) {
 		e.provider = p
 	}

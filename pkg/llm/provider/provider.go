@@ -12,8 +12,8 @@ type ModelLister interface {
 	ListModels(ctx context.Context) ([]string, error)
 }
 
-// ChatGenerator defines text generation and tool invocation mechanics for standard chat flows.
-type ChatGenerator interface {
+// Generator defines text generation and tool invocation mechanics for standard chat flows.
+type Generator interface {
 	// GenerateStream yields complete Part operations (e.g., fully formed text
 	// parts or complete tool requests) from the LLM based on the conversation messages.
 	GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error)
@@ -27,6 +27,6 @@ type Embedder interface {
 // Provider represents a generic LLM client (e.g., OpenAI, Vertex) combining multiple modality interfaces.
 // It is intended for backwards compatibility; prefer the specific segregated interfaces where possible.
 type Provider interface {
-	ChatGenerator
+	Generator
 	ModelLister
 }

@@ -115,6 +115,29 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 	return out, nil
 }
 
+// GenerateEmbeddings implements the Embedder interface for Ollama.
+func (o *Provider) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+	req := &api.EmbedRequest{
+		Model:   o.model,
+		Input:   texts,
+		Options: o.options,
+	}
+
+	resp, err := o.client.Embed(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate ollama embeddings: %w", err)
+	}
+
+	var embeddings [][]float32
+	// Ensure we don't return null if Embeddings is empty but not nil
+	if resp.Embeddings != nil {
+		embeddings = make([][]float32, len(resp.Embeddings))
+		copy(embeddings, resp.Embeddings)
+	}
+
+	return embeddings, nil
+}
+
 // ListModels returns a list of available models from the Ollama instance.
 func (o *Provider) ListModels(ctx context.Context) ([]string, error) {
 	resp, err := o.client.List(ctx)
