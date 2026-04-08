@@ -7,6 +7,7 @@ import (
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 )
 
 type MemoryHistory struct {
@@ -30,7 +31,7 @@ type MockProvider struct {
 	stream []llm.Part
 }
 
-func (m *MockProvider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
+func (m *MockProvider) GenerateStream(ctx context.Context, messages []llm.Message, opts ...provider.GenerateOption) (<-chan llm.Part, error) {
 	out := make(chan llm.Part)
 	go func() {
 		defer close(out)

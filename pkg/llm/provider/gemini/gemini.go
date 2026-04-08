@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 	"google.golang.org/genai"
 )
 
@@ -47,10 +48,40 @@ func New(apiKey string, opts ...Option) (*Provider, error) {
 	return p, nil
 }
 
-func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
+func (p *Provider) Capabilities() provider.Capabilities {
+	return provider.Capabilities{
+		SupportsSystemPrompt:     true,
+		SupportsToolCalling:      true,
+		SupportsImages:           true,
+		SupportsStructuredOutput: true,
+		MaxContextWindow:         0,
+	}
+}
+
+func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message, opts ...provider.GenerateOption) (<-chan llm.Part, error) {
 	out := make(chan llm.Part)
 
+	config := &provider.GenerateConfig{}
+	for _, opt := range opts {
+		opt(config)
+	}
+
 	contents, cfg := buildGeminiRequest(messages)
+
+	if config.Temperature != nil {
+		cfg.Temperature = config.Temperature
+	}
+	if config.MaxTokens != nil {
+		maxT := int32(*config.MaxTokens)
+		cfg.MaxOutputTokens = maxT
+	}
+	if len(config.JSONSchema) > 0 {
+		var schema genai.Schema
+		if err := json.Unmarshal(config.JSONSchema, &schema); err == nil {
+			cfg.ResponseSchema = &schema
+			cfg.ResponseMIMEType = "application/json"
+		}
+	}
 
 	go func() {
 		defer close(out)
@@ -60,7 +91,7 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 		
 		for resp, err := range stream {
 			if err != nil {
-				out <- llm.TextPart(fmt.Sprintf("\n[Gemini Provider Stream Error: %v]", err))
+				out <- llm.TextPart(fmt.Sprintf("\n[Gemini Provider Stream Error: %v - %v]", provider.ErrProviderUnavailable, err))
 				return
 			}
 

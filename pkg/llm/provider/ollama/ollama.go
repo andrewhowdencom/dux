@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 	"github.com/google/uuid"
 	api "github.com/ollama/ollama/api"
 )
@@ -66,8 +67,23 @@ func New(opts ...Option) (*Provider, error) {
 	return p, nil
 }
 
-func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
+func (o *Provider) Capabilities() provider.Capabilities {
+	return provider.Capabilities{
+		SupportsSystemPrompt:     true,
+		SupportsToolCalling:      true,
+		SupportsImages:           false,
+		SupportsStructuredOutput: true,
+		MaxContextWindow:         0,
+	}
+}
+
+func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message, opts ...provider.GenerateOption) (<-chan llm.Part, error) {
 	out := make(chan llm.Part)
+
+	config := &provider.GenerateConfig{}
+	for _, opt := range opts {
+		opt(config)
+	}
 
 	reqMessages, reqTools := buildOllamaRequest(messages)
 
@@ -75,12 +91,28 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 		defer close(out)
 
 		t := true
+		
+		runOptions := make(map[string]any)
+		for k, v := range o.options {
+			runOptions[k] = v
+		}
+		
+		if config.Temperature != nil {
+			runOptions["temperature"] = *config.Temperature
+		}
+		
+		var format json.RawMessage
+		if len(config.JSONSchema) > 0 {
+			format = json.RawMessage(config.JSONSchema)
+		}
+
 		req := &api.ChatRequest{
 			Model:    o.model,
 			Messages: reqMessages,
 			Tools:    reqTools,
 			Stream:   &t,
-			Options:  o.options,
+			Options:  runOptions,
+			Format:   format,
 		}
 
 		err := o.client.Chat(ctx, req, func(resp api.ChatResponse) error {
@@ -108,7 +140,7 @@ func (o *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 		})
 
 		if err != nil {
-			out <- llm.TextPart(fmt.Sprintf("\n[Ollama Provider Error: %v]", err))
+			out <- llm.TextPart(fmt.Sprintf("\n[Ollama Provider Error: %v - %v]", provider.ErrProviderUnavailable, err))
 		}
 	}()
 

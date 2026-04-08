@@ -9,6 +9,7 @@ import (
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 )
 
 type mockTool struct {
@@ -67,7 +68,7 @@ type toolMockProvider struct {
 	callCount int
 }
 
-func (m *toolMockProvider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
+func (m *toolMockProvider) GenerateStream(ctx context.Context, messages []llm.Message, opts ...provider.GenerateOption) (<-chan llm.Part, error) {
 	outCh := make(chan llm.Part)
 
 	go func() {

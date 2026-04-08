@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 )
 
 // Option allows functional configuration of the Static Provider.
@@ -41,8 +42,18 @@ func New(opts ...Option) (*Provider, error) {
 	return p, nil
 }
 
+func (s *Provider) Capabilities() provider.Capabilities {
+	return provider.Capabilities{
+		SupportsSystemPrompt:     false,
+		SupportsToolCalling:      false,
+		SupportsImages:           false,
+		SupportsStructuredOutput: false,
+		MaxContextWindow:         0,
+	}
+}
+
 // GenerateStream immediately yields all specified message parts directly into the output stream.
-func (s *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
+func (s *Provider) GenerateStream(ctx context.Context, messages []llm.Message, opts ...provider.GenerateOption) (<-chan llm.Part, error) {
 	out := make(chan llm.Part)
 
 	go func() {
@@ -64,4 +75,13 @@ func (s *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 // ListModels returns a static list of models for the Static provider.
 func (s *Provider) ListModels(ctx context.Context) ([]string, error) {
 	return []string{"static-model"}, nil
+}
+
+// GenerateEmbeddings returns a mock set of empty vectors.
+func (s *Provider) GenerateEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
+    result := make([][]float32, len(texts))
+    for i := range texts {
+        result[i] = []float32{0.0}
+    }
+    return result, nil
 }

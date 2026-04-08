@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/llm/provider"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -60,8 +61,23 @@ func New(apiKey string, opts ...Option) (*Provider, error) {
 	return p, nil
 }
 
-func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (<-chan llm.Part, error) {
+func (p *Provider) Capabilities() provider.Capabilities {
+	return provider.Capabilities{
+		SupportsSystemPrompt:     true,
+		SupportsToolCalling:      true,
+		SupportsImages:           true,
+		SupportsStructuredOutput: true,
+		MaxContextWindow:         0,
+	}
+}
+
+func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message, opts ...provider.GenerateOption) (<-chan llm.Part, error) {
 	out := make(chan llm.Part)
+
+	config := &provider.GenerateConfig{}
+	for _, opt := range opts {
+		opt(config)
+	}
 
 	reqMessages, reqTools := buildOpenAIRequest(messages)
 
@@ -77,6 +93,20 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 			},
 		}
 
+		if config.Temperature != nil {
+			req.Temperature = *config.Temperature
+		}
+		
+		if config.MaxTokens != nil {
+			req.MaxTokens = *config.MaxTokens
+		}
+
+		if len(config.JSONSchema) > 0 {
+			req.ResponseFormat = &openai.ChatCompletionResponseFormat{
+				Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+			}
+		}
+
 		if len(reqTools) > 0 {
 			req.Tools = reqTools
 		}
@@ -86,9 +116,13 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 		if err != nil {
 			var apiErr *openai.APIError
 			if errors.As(err, &apiErr) {
-				out <- llm.TextPart(fmt.Sprintf("\n[OpenAI Provider Error: %v]", apiErr.Message))
+				if apiErr.HTTPStatusCode == 429 {
+					out <- llm.TextPart(fmt.Sprintf("\n[OpenAI Provider Error: %v - %v]", provider.ErrRateLimitExceeded, apiErr.Message))
+				} else {
+					out <- llm.TextPart(fmt.Sprintf("\n[OpenAI Provider Error: %v - %v]", provider.ErrProviderUnavailable, apiErr.Message))
+				}
 			} else {
-				out <- llm.TextPart(fmt.Sprintf("\n[OpenAI Provider Error: %v]", err))
+				out <- llm.TextPart(fmt.Sprintf("\n[OpenAI Provider Error: %v - %v]", provider.ErrProviderUnavailable, err))
 			}
 			return
 		}
@@ -122,7 +156,7 @@ func (p *Provider) GenerateStream(ctx context.Context, messages []llm.Message) (
 				return
 			}
 			if err != nil {
-				out <- llm.TextPart(fmt.Sprintf("\n[OpenAI Provider Stream Error: %v]", err))
+				out <- llm.TextPart(fmt.Sprintf("\n[OpenAI Provider Stream Error: %v - %v]", provider.ErrProviderUnavailable, err))
 				return
 			}
 
@@ -274,11 +308,8 @@ func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage,
 			}
 		}
 
-		// Tool results expect a strict correspondence (1 message per result)
 		if len(toolResults) > 0 {
 			for _, tr := range toolResults {
-				// Anthropic/LiteLLM cannot tolerate empty content strings from tool results.
-				// By json marshaling without a string wrapper, we get reliable string conversion.
 				var content string
 				if s, ok := tr.Result.(string); ok {
 					content = s
@@ -288,16 +319,16 @@ func buildOpenAIRequest(messages []llm.Message) ([]openai.ChatCompletionMessage,
 				}
 				
 				if content == "" || content == "null" {
-					content = "{}" // Safe fallback
+					content = "{}"
 				}
 
 				reqMessages = append(reqMessages, openai.ChatCompletionMessage{
-					Role:       openai.ChatMessageRoleTool, // Must explicitly be the 'tool' role
+					Role:       openai.ChatMessageRoleTool,
 					Content:    content,
 					ToolCallID: tr.ToolID,
 				})
 			}
-			// If there happens to be stray text attached to the same logic frame, emit as user
+
 			if textContent != "" || thinkingContent != "" {
 				reqMessages = append(reqMessages, openai.ChatCompletionMessage{
 					Role:             openai.ChatMessageRoleUser,
