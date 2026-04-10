@@ -8,6 +8,7 @@ import (
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/binary"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/semantic"
 	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
 	"github.com/andrewhowdencom/dux/pkg/memory/working"
@@ -33,9 +34,17 @@ func NewEngine(
 	toolMap := make(map[string]config.ToolConfig)
 	requiresSupervision := make(map[string]interface{})
 
-	for _, t := range globalTools {
-		toolMap[t.Name] = t
+	var flattenTools func(tools []config.ToolConfig)
+	flattenTools = func(tools []config.ToolConfig) {
+		for _, t := range tools {
+			toolMap[t.Name] = t
+			if len(t.Tools) > 0 {
+				flattenTools(t.Tools)
+			}
+		}
 	}
+
+	flattenTools(globalTools)
 
 	if agentName != "" {
 		agents, err := config.LoadAgents(agentsFilePath)
@@ -55,14 +64,13 @@ func NewEngine(
 			}
 			enrichers = en
 
-			for _, t := range agt.Context.Tools {
-				toolMap[t.Name] = t
-			}
+			flattenTools(agt.Context.Tools)
 		}
 	}
 
 	var nativeToolNames []string
 	var mcpConfigs []config.ToolConfig
+	var binaryConfigs []config.ToolConfig
 
 	timeouts := make(map[string]time.Duration)
 
@@ -93,10 +101,14 @@ func NewEngine(
 
 		if t.MCP != nil {
 			mcpConfigs = append(mcpConfigs, t)
+		} else if t.Binary != nil {
+			binaryConfigs = append(binaryConfigs, t)
 		} else if name == "semantic" || (len(name) >= 9 && name[:9] == "semantic_") {
 			semanticToolNames = append(semanticToolNames, name)
 		} else {
-			nativeToolNames = append(nativeToolNames, name)
+			if len(t.Tools) == 0 {
+				nativeToolNames = append(nativeToolNames, name)
+			}
 		}
 	}
 
@@ -122,6 +134,10 @@ func NewEngine(
 		return nil, nil, nil, err
 	}
 	resolvers = append(resolvers, mcpResolvers...)
+
+	for _, bCfg := range binaryConfigs {
+		resolvers = append(resolvers, binary.NewProvider(bCfg.Name, bCfg.Binary))
+	}
 
 	if len(semanticToolNames) > 0 {
 		var dbPath = ":memory:" // Default to in-memory for now

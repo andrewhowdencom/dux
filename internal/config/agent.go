@@ -23,14 +23,32 @@ type ToolRequirements struct {
 	Sandbox     *bool `yaml:"sandbox,omitempty"`
 }
 
+// ToolInput defines single input parameter expected for a binary tool.
+type ToolInput struct {
+	Type        string `yaml:"type"`
+	Description string `yaml:"description"`
+	Required    bool   `yaml:"required,omitempty"`
+}
+
+// BinaryTool defines execution requirements for a custom command line binary.
+type BinaryTool struct {
+	Description string               `yaml:"description"`
+	Executable  string               `yaml:"executable"`
+	Args        []string             `yaml:"args"`
+	Inputs      map[string]ToolInput `yaml:"inputs,omitempty"`
+}
+
 // ToolConfig maps a specific tool and its deployment requirements.
-// A tool can be either a locally built-in tool or an external MCP server.
+// A tool can be either a locally built-in tool, an external MCP server, or a declarative binary tool.
+// It can also act as a logical "toolset" grouping by nesting additional configurations inside 'Tools'.
 type ToolConfig struct {
 	Name           string           `yaml:"name"`
 	Enabled        bool             `yaml:"enabled"`
 	TimeoutSeconds *int             `yaml:"timeout_seconds,omitempty"`
 	Requirements   ToolRequirements `yaml:"requirements,omitempty"`
 	MCP            *MCPServer       `yaml:"mcp,omitempty"`
+	Binary         *BinaryTool      `yaml:"binary,omitempty"`
+	Tools          []ToolConfig     `yaml:"tools,omitempty"`
 }
 
 // AgentContext defines dynamic and static context to configure an agent's memory before interaction.
