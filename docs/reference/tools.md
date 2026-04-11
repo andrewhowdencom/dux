@@ -36,6 +36,36 @@ Edits an existing file by replacing a specific snippet of text.
 - **Behavior**: The `original_snippet` must exactly match the text in the file. Cross-platform robustness normalizes both file content and prompt inputs (`\r\n` to `\n`) before replacement to prevent line-ending match failures. If the snippet count does not equal exactly 1, the patch fails to prevent ambiguous or destructive partial modifications.
 - **Constraints**: Typically configured with `supervision: true`.
 
+### Declarative Binary Tools
+
+`dux` allows defining custom CLI tools declaratively via configuration, allowing agents to execute local binaries securely without going through a standard Unix shell.
+
+These tools are defined in the globally available `tools` configuration block (or directly on an agent) using the `binary` mapping.
+
+**Configuration Schema:**
+- `executable` (string): The literal name or absolute path of the binary (e.g. `git`, `docker`, `/usr/bin/kubectl`).
+- `args` ([]string): An exact array of arguments passed to the executable. Supports `{key}` substitutions matching the defined `inputs` (e.g. `["push", "origin", "{branch}"]`).
+- `inputs` (map): A dictionary mapping input parameter names to their JSON Schema definitions:
+  - `type` (string): The data type, e.g. `"string"`.
+  - `description` (string): Context provided to the LLM about what this parameter controls.
+  - `required` (boolean): Whether the LLM must provide this argument.
+
+**Example Definition:**
+```yaml
+tools:
+  - name: my_docker_build
+    requirements:
+      supervision: "args.tag == 'latest'"
+    binary:
+      executable: docker
+      args: ["build", "-t", "{tag}", "."]
+      inputs:
+        tag:
+          type: string
+          description: "Image tag to build"
+          required: true
+```
+
 ## Tool Bundles & Supervision (CEL)
 
 With `dux` agents configuration, tools natively group together into broader **namespaces** or **bundles** (`stdlib`, `filesystem`, `semantic`). Instead of enabling `file_read` and `file_write` individually, simply specify `name: "filesystem"` in your agent tools configuration. 
