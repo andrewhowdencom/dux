@@ -90,21 +90,21 @@ triggers:
 To spin up all triggers configured for a specific agent (like background schedules alongside interactive chat), use:
 
 ```bash
-dux run qa
+dux run conversation
 ```
 
 **Immediate One-Shots (Stdin):**
 To submit a raw snippet to an agent in a background context without invoking Bubbletea REPL, pipe into `invoke`:
 
 ```bash
-echo "Check system status" | dux invoke qa
+echo "Check system status" | dux invoke conversation
 ```
 
 **Single Chat Session:**
 To strictly invoke an interactive `chat` session explicitly:
 
 ```bash
-dux chat --agent qa
+dux chat --agent conversation
 ```
 
 > **Note:** The `--agent` flag in chat limits execution to just the REPL context. Use `dux run` for the full multi-modal Trigger experience.

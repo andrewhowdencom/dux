@@ -1,10 +1,10 @@
-# To install, copy to ~/.config/dux/agents/qa/agent.yaml
-name: "qa"
+# To install, copy to ~/.config/dux/agents/conversation/agent.yaml
+name: "conversation"
 provider: "ollama-local"
 workflow:
-  default_mode: "qa"
+  default_mode: "conversation"
   modes:
-    - name: "qa"
+    - name: "conversation"
       context:
         system: |
           You are a specialized Question & Answer agent.

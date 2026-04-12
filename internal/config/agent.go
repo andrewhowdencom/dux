@@ -78,9 +78,31 @@ type ModeTransition struct {
 // Mode represents a specific state in an agent's workflow graph.
 type Mode struct {
 	Name        string           `yaml:"name"`
+	Use         string           `yaml:"use,omitempty"`
 	Provider    string           `yaml:"provider,omitempty"`
 	Context     *AgentContext    `yaml:"context,omitempty"`
 	Transitions []ModeTransition `yaml:"transitions,omitempty"`
+}
+
+// Merge structurally inherits properties from the base mode.
+// Local properties take precedence. Arrays (like tools/enrichers) are appended.
+func (m *Mode) Merge(base *Mode) {
+	if m.Provider == "" {
+		m.Provider = base.Provider
+	}
+	
+	if base.Context != nil {
+		if m.Context == nil {
+			m.Context = base.Context
+		} else {
+			if m.Context.System == "" {
+				m.Context.System = base.Context.System
+			}
+			m.Context.Enrichers = append(base.Context.Enrichers, m.Context.Enrichers...)
+			m.Context.Tools = append(base.Context.Tools, m.Context.Tools...)
+		}
+	}
+	m.Transitions = append(base.Transitions, m.Transitions...)
 }
 
 // Workflow defines the graph of modes a context router traverses.
@@ -148,6 +170,18 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 		
 		// Optional: If the internal Name is missing, we could default to entry.Name() here
 		// if agent.Name == "" { agent.Name = entry.Name() }
+
+		if agent.Workflow != nil {
+			for i, m := range agent.Workflow.Modes {
+				if m.Use != "" {
+					base, ok := GetBuiltinMode(m.Use)
+					if ok {
+						m.Merge(base)
+						agent.Workflow.Modes[i] = m
+					}
+				}
+			}
+		}
 
 		agents = append(agents, agent)
 	}
