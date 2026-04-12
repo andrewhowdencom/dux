@@ -104,7 +104,9 @@ func (m *Mode) Merge(base *Mode) {
 			m.Context.Tools = append(base.Context.Tools, m.Context.Tools...)
 		}
 	}
-	m.Transitions = append(base.Transitions, m.Transitions...)
+	if len(m.Transitions) == 0 && len(base.Transitions) > 0 {
+		m.Transitions = base.Transitions
+	}
 }
 
 // Workflow defines the graph of modes a context router traverses.
