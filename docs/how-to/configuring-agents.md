@@ -15,86 +15,74 @@ Within this directory, each agent should be placed in its own folder. The folder
 An `agent.yaml` file uses a YAML object describing the agent. You can start by checking the `examples/dux/agents/` folder available in the root repository. Below is a sample configuration:
 
 ```yaml
-name: "qa"
-  provider: "ollama-local"
-  context:
-    system: |
-      You are a specialized Question & Answer agent.
-      Respond strictly to the prompt with complete, accurate answers.
-      Always incorporate the injected enrichers as part of your source truth context.
-    enrichers:
-      - type: "time"
-      - type: "os"
-    tools:
-      - name: "stdlib"
-        enabled: true
-        requirements:
-          supervision: false
-      - name: "bash"
-        enabled: true
-        requirements:
-          # CEL policy replacing boolean supervision
-          supervision: "!(args.command.startsWith('ls '));"
-      - name: "filesystem"
-        enabled: true
-        requirements:
-          supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
-      - name: "semantic"
-        enabled: true
-        requirements:
-          supervision: "tool_name == 'semantic_write' || tool_name == 'semantic_delete'"
-  triggers:
-    - type: chat
-    - type: schedule
-      config:
-        cron: "@every 5m"
-        topic: "qa_health"
-        prompt: "Run health diagnostic"
+name: "technical-author"
+provider: "ollama-local"
+workflow:
+  default_mode: "researcher"
+  modes:
+    - name: "researcher"
+      context:
+        system: |
+          You are a specialized research agent. Gather data and respond completely.
+        enrichers:
+          - type: "time"
+          - type: "os"
+        tools:
+          - name: "stdlib"
+            enabled: true
+            requirements:
+              supervision: false
+          - name: "filesystem"
+            enabled: true
+            mcp:
+              command: "npx"
+              args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
+      transitions:
+        - to: "writer"
+          description: "Use this tool to switch to the writer mode when you have collected all necessary research."
 
-- name: "writer"
-  provider: "openai"
-  context:
-    system: |
-      You are a technical writer conforming to the Diátaxis documentation framework.
+    - name: "writer"
+      provider: "openai" # Override the base agent provider with a more expensive model
+      context:
+        system: |
+          You are a technical writer conforming to the Diátaxis documentation framework. 
+          Use the injected memory from the researcher to formulate a markdown guide.
+      transitions:
+        - to: "researcher"
+          description: "Use this tool to pass the finished draft back to the researcher for review."
 
-- name: "researcher"
-  provider: "openai"
-  context:
-    tools:
-      - name: "filesystem"
-        enabled: true
-        mcp:
-          command: "npx"
-          args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
-      - name: "weather"
-        enabled: true
-        mcp:
-          url: "http://localhost:3000/sse"
-          headers:
-            "Authorization": "Bearer token123"
+triggers:
+  - type: chat
+  - type: schedule
+    config:
+      cron: "@every 5m"
+      topic: "qa_health"
+      prompt: "Run health diagnostic"
 ```
 
 ### Agent Fields
 
 *   `name` (string): The identifier you will use in the CLI.
-*   `provider` (string): The LLM Provider ID from your core configuration (e.g., `config.yaml` `llm.providers` array).
-*   `context` (object): Options for defining dynamic and static inputs.
-    *   `system` (string): The initial prompt injected seamlessly at the start of your chat instance.
-    *   `enrichers` (array): A list of dynamic context injection tools (e.g. `type: "time"` or `type: "os"`).
-    *   `tools` (array): A list of local or remote MCP tools to bind to the agent context.
-        *   `name` (string): Identifier for the tool or MCP server.
-        *   `enabled` (bool): Whether the tool is active.
-        *   `timeout_seconds` (int, *optional*): Set a maximum execution time limit. Defaults to `5` for native tools, and `300` for MCP servers.
-        *   `mcp` (object): Options for an external Model Context Protocol server.
-            *   `command` (string): Command to execute a local server in `stdio` mode (e.g., `npx`).
-            *   `args` (array): Arguments passed to the `command` (e.g., `["-y", "@modelcontextprotocol/server-filesystem", "/src"]`).
-            *   `env` (map): Arbitrary key/value pairs for local subprocess environment variables.
-            *   `url` (string): Absolute URL endpoint targeting an `sse` event stream. (If provided, takes precedence over `command`).
-            *   `headers` (map): Arbitrary key/value HTTP headers (e.g., Authorization) sent to remote `sse` servers.
+*   `provider` (string): The fallback LLM Provider ID (e.g., `ollama-local`).
+*   `workflow` (object): Defines the state machine of modes for context routing.
+    *   `default_mode` (string): The mode the agent instantiates into initially (e.g., `researcher`).
+    *   `modes` (array): A list of available state machine nodes.
+        *   `name` (string): The mode identifier.
+        *   `provider` (string, *optional*): Override the LLM provider for this specific mode.
+        *   `context` (object): The strict focus limitations injected during this phase of execution.
+            *   `system` (string): The overarching intent or persona limitation for this mode.
+            *   `enrichers` (array): A list of dynamic context injection tools (e.g. time, os).
+            *   `tools` (array): The exact tools the LLM has access to during this mode.
+                *   `name` (string): Identifier for the tool or MCP server.
+                *   `enabled` (bool): Whether the tool is active.
+                *   `requirements` (object): Specify CEL-based `supervision` policies.
+                *   `mcp` (object): Options for an external Model Context Protocol server.
+        *   `transitions` (array): A list of mapped exit parameters for this mode.
+            *   `to` (string): The target mode to switch to.
+            *   `description` (string): Injected as a dynamic tool prompt telling the LLM when to use this transition.
 *   `triggers` (array): A list of execution paradigms the agent should bind to when launched via `dux run`.
     *   `type` (string): The trigger class (e.g., `chat`, `schedule`, `event`, `timer`).
     *   `config` (map): Arbitrary configuration payload for the specific trigger.
-        *   (Schedule requires `cron`, `topic`, `prompt`. Event requires `topic`.)
 
 ## Interacting with Agents
 

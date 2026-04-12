@@ -16,13 +16,17 @@ In your `agents/<agent-name>/agent.yaml`, establish the marketing persona:
 ### YAML Configuration Example
 
 ```yaml
-- name: "product-marketer"
-  provider: "ollama-local"
-  context:
-    system: |
-      You are an elite Product Marketing Manager.
-      Write compelling, benefit-driven copy. Focus on the "Why" and the value generated
-      for the end user, rather than just technical specifications.
+name: "product-marketer"
+provider: "ollama-local"
+workflow:
+  default_mode: "marketing"
+  modes:
+    - name: "marketing"
+      context:
+        system: |
+          You are an elite Product Marketing Manager.
+          Write compelling, benefit-driven copy. Focus on the "Why" and the value generated
+          for the end user, rather than just technical specifications.
 ```
 
 ### Go Library Example

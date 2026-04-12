@@ -16,20 +16,24 @@ In your `agents/<agent-name>/agent.yaml` file, define the support agent profile.
 ### YAML Configuration Example
 
 ```yaml
-- name: "support-assistant"
-  provider: "ollama-local"
-  context:
-    system: |
-      You are a helpful, empathetic Customer Support Assistant.
-      Address the user's issue directly and concisely. If you do not know the answer,
-      apologize and recommend they contact a human agent.
-    tools:
-      - name: "time"
-        enabled: true
-        requirements:
-          supervision: false
-    enrichers:
-      - type: "os"
+name: "support-assistant"
+provider: "ollama-local"
+workflow:
+  default_mode: "support"
+  modes:
+    - name: "support"
+      context:
+        system: |
+          You are a helpful, empathetic Customer Support Assistant.
+          Address the user's issue directly and concisely. If you do not know the answer,
+          apologize and recommend they contact a human agent.
+        tools:
+          - name: "time"
+            enabled: true
+            requirements:
+              supervision: false
+        enrichers:
+          - type: "os"
 ```
 
 ### Go Library Example

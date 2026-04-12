@@ -18,14 +18,18 @@ Create an entry for the Q&A Bot agent:
 ### YAML Configuration Example
 
 ```yaml
-- name: "qa-bot"
-  provider: "ollama-local" # Substitute with your configured provider
-  context:
-    system: |
-      You are a precise, helpful Q&A Bot.
-      Your job is to answer user questions based on the provided context or knowledge base.
-      If you do not know the answer based on the provided context, clearly state that you do not know.
-      Provide concise, direct answers and optionally cite the relevant part of the source material.
+name: "qa-bot"
+provider: "ollama-local" # Substitute with your configured provider
+workflow:
+  default_mode: "qa-bot"
+  modes:
+    - name: "qa-bot"
+      context:
+        system: |
+          You are a precise, helpful Q&A Bot.
+          Your job is to answer user questions based on the provided context or knowledge base.
+          If you do not know the answer based on the provided context, clearly state that you do not know.
+          Provide concise, direct answers and optionally cite the relevant part of the source material.
 ```
 
 ### Go Library Example

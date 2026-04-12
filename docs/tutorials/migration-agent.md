@@ -16,13 +16,17 @@ Set up an agent profile in `agents/<agent-name>/agent.yaml` designed specificall
 ### YAML Configuration Example
 
 ```yaml
-- name: "refactor-bot"
-  provider: "claude-or-equivalent"
-  context:
-    system: |
-      You are an expert Software Engineer specializing in codebase migrations.
-      When given a deprecated code block, you must return only the refactored code 
-      using the new v2.0 API. Do not include markdown formatting or explanations.
+name: "refactor-bot"
+provider: "claude-or-equivalent"
+workflow:
+  default_mode: "refactor"
+  modes:
+    - name: "refactor"
+      context:
+        system: |
+          You are an expert Software Engineer specializing in codebase migrations.
+          When given a deprecated code block, you must return only the refactored code 
+          using the new v2.0 API. Do not include markdown formatting or explanations.
 ```
 
 ### Go Library Example
