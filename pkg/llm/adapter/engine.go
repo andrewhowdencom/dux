@@ -71,6 +71,14 @@ func New(opts ...Option) *Engine {
 	return e
 }
 
+// UpdateOptions allows hot-swapping configuration elements (like working memory
+// and active tools) securely between mode transitions.
+func (e *Engine) UpdateOptions(opts ...Option) {
+	for _, opt := range opts {
+		opt(e)
+	}
+}
+
 // Stream executes the recursive convergence loop natively incorporating tools and middleware constraints.
 func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan llm.Message, error) {
 	out := make(chan llm.Message)
@@ -165,9 +173,25 @@ func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initial
 	// Executed after the provider closes its stream slice
 	if len(pendingCalls) > 0 {
 		var results []llm.ToolResultPart
+		var transition *llm.TransitionSignalPart
+
 		for _, tc := range pendingCalls {
-			result := e.executeToolWithMiddleware(ctx, tc)
-			results = append(results, result)
+			resPart := e.executeToolWithMiddleware(ctx, tc)
+			if trans, ok := resPart.(llm.TransitionSignalPart); ok {
+				transition = &trans
+			} else if tr, ok := resPart.(llm.ToolResultPart); ok {
+				results = append(results, tr)
+			}
+		}
+
+		if transition != nil {
+			transMsg := llm.Message{
+				SessionID: sessionID,
+				Identity:  llm.Identity{Role: "system"},
+				Parts:     []llm.Part{*transition},
+			}
+			e.safeSend(ctx, out, transMsg)
+			return // gracefully break the recursion loop
 		}
 
 		// ToolResult parts need to be appended to history as well!
@@ -234,7 +258,7 @@ func (e *Engine) buildPromptMessages(ctx context.Context, q llm.InjectQuery, ini
 	return msgs, nil
 }
 
-func (e *Engine) executeToolWithMiddleware(ctx context.Context, req llm.ToolRequestPart) llm.ToolResultPart {
+func (e *Engine) executeToolWithMiddleware(ctx context.Context, req llm.ToolRequestPart) llm.Part {
 	resultPart := llm.ToolResultPart{
 		ToolID: req.ToolID,
 		Name:   req.Name,
@@ -279,6 +303,12 @@ func (e *Engine) executeToolWithMiddleware(ctx context.Context, req llm.ToolRequ
 		resultPart.Result = err.Error()
 		resultPart.IsError = true
 	} else {
+		if transitionObj, ok := res.(llm.TransitionSignalPart); ok {
+			return transitionObj
+		}
+		if transitionPtr, ok := res.(*llm.TransitionSignalPart); ok {
+			return *transitionPtr
+		}
 		resultPart.Result = res
 	}
 

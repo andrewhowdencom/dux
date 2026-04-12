@@ -69,11 +69,32 @@ type MCPServer struct {
 	Headers   map[string]string `yaml:"headers,omitempty"`
 }
 
+// ModeTransition defines an automated tool injection to transition between workflow modes.
+type ModeTransition struct {
+	To          string `yaml:"to"`
+	Description string `yaml:"description"`
+}
+
+// Mode represents a specific state in an agent's workflow graph.
+type Mode struct {
+	Name        string           `yaml:"name"`
+	Provider    string           `yaml:"provider,omitempty"`
+	Context     *AgentContext    `yaml:"context,omitempty"`
+	Transitions []ModeTransition `yaml:"transitions,omitempty"`
+}
+
+// Workflow defines the graph of modes a context router traverses.
+type Workflow struct {
+	DefaultMode string `yaml:"default_mode"`
+	Modes       []Mode `yaml:"modes"`
+}
+
 // Agent defines a distinct interactive role combining a provider and dynamic context.
 type Agent struct {
 	Name     string        `yaml:"name"`
 	Provider string        `yaml:"provider"`
 	Context  *AgentContext `yaml:"context,omitempty"`
+	Workflow *Workflow     `yaml:"workflow,omitempty"`
 	Triggers []Trigger     `yaml:"triggers,omitempty"`
 }
 
