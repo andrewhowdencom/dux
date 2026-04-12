@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/internal/ui"
@@ -31,6 +32,14 @@ type Server struct {
 	hitl          *WebHITL
 	engineFactory EngineFactory
 	sessionKey    []byte
+
+	sessionsMutex sync.RWMutex
+	sessions      map[string]*Session
+}
+
+type Session struct {
+	Engine  Streamer
+	Cleanup func()
 }
 
 // NewMux creates a new HTTP serve mux for the UI.
@@ -52,6 +61,7 @@ func NewMux(agentsDir string, agentName string, providerID string) *http.ServeMu
 			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 		},
 		sessionKey: key,
+		sessions:   make(map[string]*Session),
 	}
 
 	mux.HandleFunc("/api/session", srv.handleSession)
@@ -154,15 +164,23 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	ctx := llm.WithSessionID(r.Context(), sessionID)
 
-	// Create engine for this ephemeral request
-	path := s.agentsDir
-	engine, _, cleanup, err := s.engineFactory(ctx, s.agentName, s.providerID, path, s.hitl, false)
-	if err != nil {
-		slog.Error("failed to initialize engine", "error", err)
-		http.Error(w, fmt.Sprintf("failed to initialize engine: %v", err), http.StatusInternalServerError)
-		return
+	s.sessionsMutex.Lock()
+	sess, ok := s.sessions[sessionID]
+	if !ok {
+		engine, _, cleanup, err := s.engineFactory(ctx, s.agentName, s.providerID, s.agentsDir, s.hitl, false)
+		if err != nil {
+			s.sessionsMutex.Unlock()
+			slog.Error("failed to initialize engine", "error", err)
+			http.Error(w, fmt.Sprintf("failed to initialize engine: %v", err), http.StatusInternalServerError)
+			return
+		}
+		sess = &Session{
+			Engine:  engine,
+			Cleanup: cleanup,
+		}
+		s.sessions[sessionID] = sess
 	}
-	defer cleanup()
+	s.sessionsMutex.Unlock()
 
 	// Set headers for streaming text/event-stream or ndjson
 	w.Header().Set("Content-Type", "application/x-ndjson")
@@ -180,7 +198,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	session := &pkgui.ChatSession{
 		ID:      sessionID,
-		Engine:  engine,
+		Engine:  sess.Engine,
 		View:    view,
 	}
 
