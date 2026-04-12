@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/viper"
 
 	"gopkg.in/yaml.v3"
+	
+	"github.com/andrewhowdencom/dux/pkg/mode"
 )
 
 // Enricher defines the configuration for a context enricher.
@@ -136,6 +138,27 @@ func ResolveAgentsDir(path string) string {
 	return p
 }
 
+// mapDefinitionToMode converts a core library mode definition into the parser's schema.
+func mapDefinitionToMode(def mode.Definition) *Mode {
+	m := &Mode{
+		Name: def.Name,
+	}
+	if def.System != "" {
+		m.Context = &AgentContext{
+			System: def.System,
+		}
+	}
+	if len(def.Transitions) > 0 {
+		for _, t := range def.Transitions {
+			m.Transitions = append(m.Transitions, ModeTransition{
+				To:          t.Target,
+				Description: t.Description,
+			})
+		}
+	}
+	return m
+}
+
 // LoadAgents enumerates all folders within agentsDir, expecting an agent.yaml inside.
 func LoadAgents(agentsDir string) ([]Agent, error) {
 	dir := ResolveAgentsDir(agentsDir)
@@ -174,8 +197,8 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 		if agent.Workflow != nil {
 			for i, m := range agent.Workflow.Modes {
 				if m.Use != "" {
-					base, ok := GetBuiltinMode(m.Use)
-					if ok {
+					if def, ok := mode.Builtins[m.Use]; ok {
+						base := mapDefinitionToMode(def)
 						m.Merge(base)
 						agent.Workflow.Modes[i] = m
 					}
