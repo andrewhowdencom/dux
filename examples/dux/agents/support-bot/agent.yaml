@@ -1,13 +1,14 @@
-# To install, copy to ~/.config/dux/agents/conversation/agent.yaml
-name: "conversation"
+# To install, copy to ~/.config/dux/agents/support-bot/agent.yaml
+name: "support-bot"
 provider: "ollama-local"
 workflow:
-  default_mode: "conversation"
+  default_mode: "support-bot"
   modes:
-    - name: "conversation"
+    - name: "support-bot"
+      use: "conversation"
       context:
         system: |
-          You are a specialized Question & Answer agent.
+          You are a specialized Support Bot agent.
           Respond strictly to the prompt with complete, accurate answers.
           Always incorporate the injected enrichers as part of your source truth context.
         tools:
