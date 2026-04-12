@@ -10,5 +10,6 @@ type Transition struct {
 type Definition struct {
 	Name        string
 	System      string
+	Tools       []string
 	Transitions []Transition
 }

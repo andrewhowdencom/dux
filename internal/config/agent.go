@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	"gopkg.in/yaml.v3"
-	
+
 	"github.com/andrewhowdencom/dux/pkg/mode"
 )
 
@@ -92,7 +92,7 @@ func (m *Mode) Merge(base *Mode) {
 	if m.Provider == "" {
 		m.Provider = base.Provider
 	}
-	
+
 	if base.Context != nil {
 		if m.Context == nil {
 			m.Context = base.Context
@@ -158,6 +158,18 @@ func mapDefinitionToMode(def mode.Definition) *Mode {
 			})
 		}
 	}
+
+	if len(def.Tools) > 0 {
+		if m.Context == nil {
+			m.Context = &AgentContext{}
+		}
+		for _, t := range def.Tools {
+			m.Context.Tools = append(m.Context.Tools, ToolConfig{
+				Name:    t,
+				Enabled: true,
+			})
+		}
+	}
 	return m
 }
 
@@ -178,7 +190,7 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 		if !entry.IsDir() {
 			continue // Only process subdirectories
 		}
-		
+
 		agentFilePath := filepath.Join(dir, entry.Name(), "agent.yaml")
 		b, err := os.ReadFile(agentFilePath)
 		if err != nil {
@@ -192,7 +204,7 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 		if err := yaml.Unmarshal(b, &agent); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal agent spec file %q: %w", agentFilePath, err)
 		}
-		
+
 		// Optional: If the internal Name is missing, we could default to entry.Name() here
 		// if agent.Name == "" { agent.Name = entry.Name() }
 

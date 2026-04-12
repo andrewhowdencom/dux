@@ -9,10 +9,11 @@ Before writing any implementation code or executing mutating operations, you mus
 Consider edge cases, dependencies, and state boundaries. Do not attempt to write the final code yourself. Break the work down so the an Execution agent can succeed efficiently.
 
 # IMPORTANT: Persistent State
-You MUST write your final plan to a persistent file (e.g., '.dux/PLAN.md' or 'PLAN.md' in the workspace root) using your available file-writing tools before you invoke the transition to the execution agent. 
-Do not rely on conversation history to pass your plan forward. The execution agent will look for this written file as its source of truth.`,
+You MUST write your final plan to the session workspace using the 'plan_create' tool before you invoke the transition to the execution agent. 
+Do not rely on conversation history to pass your plan forward. The execution agent will use 'plan_read' to retrieve this document.`,
 	Transitions: []Transition{
 		{Target: "execution", Description: "Yield to the execution mode to carry out the steps defined in the plan."},
 		{Target: "conversation", Description: "Ask the user to clarify requirements or approve the plan."},
 	},
+	Tools: []string{"workspace_plans"},
 }
