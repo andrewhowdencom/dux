@@ -18,8 +18,21 @@ An `agent.yaml` file uses a YAML object describing the agent. You can start by c
 name: "technical-author"
 provider: "ollama-local"
 workflow:
-  default_mode: "researcher"
+  default_mode: "orchestrator"
   modes:
+    - name: "orchestrator"
+      context:
+        system: |
+          You are the lead Orchestrator. Route work to researcher and writer sub-agents.
+        tools:
+          - name: "stdlib"
+            enabled: true
+      transitions:
+        - to: "researcher"
+          description: "Delegate to researcher to gather data."
+        - to: "writer"
+          description: "Delegate to writer to draft the guide."
+
     - name: "researcher"
       context:
         system: |
@@ -37,19 +50,24 @@ workflow:
             mcp:
               command: "npx"
               args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
+          - name: "librarian"
+            enabled: true
       transitions:
-        - to: "writer"
-          description: "Use this tool to switch to the writer mode when you have collected all necessary research."
+        - to: "orchestrator"
+          description: "Return to orchestrator with gathered research."
 
     - name: "writer"
       provider: "openai" # Override the base agent provider with a more expensive model
       context:
         system: |
           You are a technical writer conforming to the Diátaxis documentation framework. 
-          Use the injected memory from the researcher to formulate a markdown guide.
+          Use the 'read_working_memory' tool to recall the exact research data provided.
+        tools:
+          - name: "librarian"
+            enabled: true
       transitions:
-        - to: "researcher"
-          description: "Use this tool to pass the finished draft back to the researcher for review."
+        - to: "orchestrator"
+          description: "Return to orchestrator with finished draft."
 
 triggers:
   - type: chat

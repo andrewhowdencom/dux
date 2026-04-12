@@ -2,22 +2,24 @@
 name: "support-bot"
 provider: "ollama-local"
 workflow:
-  default_mode: "triage"
+  default_mode: "orchestrator"
   modes:
-    - name: "triage"
-      use: "conversation"
+    - name: "orchestrator"
+      use: "orchestrator"
       context:
         system: |
-          You are a Tier 3 Support Bot. Gather context from the user and triage their issue.
-          If the issue requires a codebase change, you must transition to the architect mode to plan the fix.
+          You are the lead Support Orchestrator. 
+          Gather context from the user and triage their issue, delegating tasks to specialize sub-agents.
         tools:
           - name: "stdlib"
             enabled: true
-            requirements:
-              supervision: false
       transitions:
         - to: "architect"
-          description: "Transition to the planning architect when a code fix needs to be designed."
+          description: "Delegate to the planning architect to design a codebase fix."
+        - to: "builder"
+          description: "Delegate to the builder to write code based on the architect's plan."
+        - to: "reviewer"
+          description: "Delegate code verification to the QA reviewer."
 
     - name: "architect"
       use: "planning"
@@ -32,10 +34,8 @@ workflow:
             requirements:
               supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
       transitions:
-        - to: "builder"
-          description: "Use this once the step-by-step checklist is complete so the execution agent can write the code."
-        - to: "triage"
-          description: "Use this if you need more information from the user."
+        - to: "orchestrator"
+          description: "Yield control back to the orchestrator with a comprehensive Markdown summary of the architectural plans."
 
     - name: "builder"
       use: "execution"
@@ -51,10 +51,8 @@ workflow:
             requirements:
               supervision: false # Autonomous execution
       transitions:
-        - to: "reviewer"
-          description: "Use this to submit your code changes for QA review."
-        - to: "triage"
-          description: "Use this to ask the user to unblock you if an error is unsolvable."
+        - to: "orchestrator"
+          description: "Yield control back to the orchestrator with a detailed summary of exact code modifications and tests run."
 
     - name: "reviewer"
       use: "review"
@@ -65,7 +63,5 @@ workflow:
             requirements:
               supervision: "!(args.command.startsWith('go test') || args.command.startsWith('make test'))" # Run tests autonomously, flag everything else
       transitions:
-        - to: "builder"
-          description: "Use this to send the code back to the builder with failing feedback."
-        - to: "triage"
-          description: "Use this to notify the user that the task is complete and verified."
+        - to: "orchestrator"
+          description: "Yield control back to the orchestrator with passing/failing QA review feedback."
