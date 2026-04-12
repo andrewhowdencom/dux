@@ -9,6 +9,7 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/binary"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/librarian"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/semantic"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/transition"
@@ -27,8 +28,6 @@ func NewEngine(
 	hitl llm.HITLHandler,
 	unsafeAllTools bool,
 ) (llm.Engine, *config.InstanceConfig, func(), error) {
-	mem := working.NewInMemory()
-
 	var allCleanups []func()
 	globalCleanup := func() {
 		for _, c := range allCleanups {
@@ -51,6 +50,11 @@ func NewEngine(
 
 	if agt != nil && agt.Workflow != nil {
 		var selectedCfg *config.InstanceConfig
+		memories := make(map[string]llm.Injector)
+
+		// Pre-populate orchestrator memory so it acts as the global reference
+		memories["orchestrator"] = working.NewInMemory()
+
 		factory := func(modeName string) ([]adapter.Option, error) {
 			var targetMode *config.Mode
 			for _, m := range agt.Workflow.Modes {
@@ -68,7 +72,15 @@ func NewEngine(
 				transitionTools = append(transitionTools, transition.New(t.To, t.Description))
 			}
 
-			opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, targetMode.Provider, targetMode.Context, hitl, unsafeAllTools, mem, transitionTools)
+			modeMem, ok := memories[modeName]
+			if !ok {
+				modeMem = working.NewInMemory()
+				memories[modeName] = modeMem
+			}
+
+			globalMem := memories["orchestrator"]
+
+			opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, targetMode.Provider, targetMode.Context, hitl, unsafeAllTools, modeMem, globalMem, transitionTools)
 			if err != nil {
 				return nil, err
 			}
@@ -90,6 +102,7 @@ func NewEngine(
 	}
 
 	// Fallback to single-context core engine
+	mem := working.NewInMemory()
 	var contextCfg *config.AgentContext
 	var fallbackProvider string
 	if agt != nil {
@@ -97,7 +110,7 @@ func NewEngine(
 		fallbackProvider = agt.Provider
 	}
 
-	opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, fallbackProvider, contextCfg, hitl, unsafeAllTools, mem, nil)
+	opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, fallbackProvider, contextCfg, hitl, unsafeAllTools, mem, mem, nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -118,6 +131,7 @@ func compileOptions(
 	hitl llm.HITLHandler,
 	unsafeAllTools bool,
 	mem llm.Injector,
+	globalMem llm.Injector,
 	transitionTools []llm.Tool,
 ) ([]adapter.Option, *config.InstanceConfig, func(), error) {
 	var finalProvider = localProviderID
@@ -170,7 +184,7 @@ func compileOptions(
 		if t.Requirements.Supervision != nil {
 			requiresSupervision[name] = t.Requirements.Supervision
 		} else {
-			if len(name) >= 9 && name[:9] == "semantic_" {
+			if (len(name) >= 9 && name[:9] == "semantic_") || (len(name) >= 14 && name[:14] == "transition_to_") || name == "read_working_memory" {
 				requiresSupervision[name] = false
 			} else {
 				requiresSupervision[name] = true
@@ -238,6 +252,10 @@ func compileOptions(
 
 	if workspacePlansEnabled {
 		resolvers = append(resolvers, plan.NewProvider())
+	}
+
+	if globalMem != nil {
+		resolvers = append(resolvers, librarian.NewProvider(globalMem))
 	}
 	
 	// Inject standard transition tools statically

@@ -6,4 +6,5 @@ var Builtins = map[string]Definition{
 	"planning":     Planning,
 	"execution":    Execution,
 	"review":       Review,
+	"orchestrator": Orchestrator,
 }

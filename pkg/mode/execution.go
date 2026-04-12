@@ -13,8 +13,7 @@ As you progress through your tasks, you MUST use the 'plan_update' tool to rewri
 Focus strictly on the task at hand. Do not engage in chatty conversation. 
 When writing code, ensure you run tests or linters appropriately. Stop and yield control when a task is fully complete or if you encounter an unsolvable blocker.`,
 	Transitions: []Transition{
-		{Target: "review", Description: "Submit the executed work to the Review mode for quality assurance."},
-		{Target: "conversation", Description: "Ask the user to unblock you if an error cannot be solved autonomously."},
+		{Target: "orchestrator", Description: "Yield control back to the orchestrator. You MUST provide a comprehensive, Markdown-formatted summary of the work you completed, any open issues, exact paths of files you created or modified, and test results in the message argument. Do not transition without a complete handoff report."},
 	},
 	Tools: []string{"workspace_plans"},
 }

@@ -1,0 +1,13 @@
+--- engine.go
++++ engine.go
+@@ -275,6 +275,10 @@
+ sort.SliceStable(msgs, func(i, j int) bool {
+ return msgs[i].Volatility < msgs[j].Volatility
+ })
++
++import "fmt"
++import "os"
++fmt.Fprintf(os.Stderr, "\n[DEBUG DUMP] msgs array size: %d\n", len(msgs))
+ 
+ return msgs, nil
+ }
