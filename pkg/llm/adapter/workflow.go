@@ -78,10 +78,15 @@ func (w *WorkflowEngine) Stream(ctx context.Context, msg llm.Message) (<-chan ll
 					w.inner = New(newOpts...)
 
 					// Generate a hidden bridge message so the new context model immediately evaluates.
+					contextMessage := fmt.Sprintf("\n[System: State transitioned successfully to mode '%s'. Acknowledge dependencies and proceed.]", transition.TargetMode)
+					if transition.Message != "" {
+						contextMessage += fmt.Sprintf("\nContext Reason provided by previous mode:\n---\n%s\n---", transition.Message)
+					}
+
 					resumeMsg := llm.Message{
 						SessionID: msg.SessionID,
 						Identity:  llm.Identity{Role: "system"},
-						Parts:     []llm.Part{llm.TextPart(fmt.Sprintf("\n[System: State transitioned successfully to mode '%s'. Acknowledge dependencies and proceed.]", transition.TargetMode))},
+						Parts:     []llm.Part{llm.TextPart(contextMessage)},
 					}
 
 					return loop(resumeMsg)
