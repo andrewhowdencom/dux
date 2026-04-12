@@ -179,12 +179,38 @@ func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initial
 			resPart := e.executeToolWithMiddleware(ctx, tc)
 			if trans, ok := resPart.(llm.TransitionSignalPart); ok {
 				transition = &trans
+				
+				// Crucial: The LLM Provider expects a graph constraint where every ToolRequest is followed by a ToolResult.
+				// Even though we are breaking the runloop to hot-swap the engine, we MUST inject a pseudo-result 
+				// bridging the old state so the new Engine does not instantly drop the 'corrupted' history matrix.
+				results = append(results, llm.ToolResultPart{
+					ToolID: tc.ToolID,
+					Name:   tc.Name,
+					Result: "State Machine Transition successfully hooked.",
+				})
 			} else if tr, ok := resPart.(llm.ToolResultPart); ok {
 				results = append(results, tr)
 			}
 		}
 
 		if transition != nil {
+			// Append the dummy results to history safely before breaking out.
+			// This closes the open function signatures inside the conversational buffer graph!
+			toolMsg := llm.Message{
+				SessionID: sessionID,
+				Identity:  llm.Identity{Role: "tool"},
+			}
+			for _, pr := range results {
+				toolMsg.Parts = append(toolMsg.Parts, pr)
+			}
+			for _, inj := range e.injectors {
+				if appendable, ok := inj.(interface{
+					Append(ctx context.Context, sessionID string, msg llm.Message) error
+				}); ok {
+					_ = appendable.Append(ctx, sessionID, toolMsg)
+				}
+			}
+
 			transMsg := llm.Message{
 				SessionID: sessionID,
 				Identity:  llm.Identity{Role: "system"},
@@ -194,7 +220,7 @@ func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initial
 			return // gracefully break the recursion loop
 		}
 
-		// ToolResult parts need to be appended to history as well!
+		// Standard tool execution (no transitions)
 		toolMsg := llm.Message{
 			SessionID: sessionID,
 			Identity:  llm.Identity{Role: "tool"},
