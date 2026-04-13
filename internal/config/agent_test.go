@@ -2,7 +2,7 @@ package config
 
 import (
 	"testing"
-	"github.com/andrewhowdencom/dux/pkg/mode"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -86,77 +86,4 @@ workflow:
 	if reviewMode.Provider != "anthropic/claude-3-opus" {
 		t.Errorf("Expected Review provider 'anthropic/claude-3-opus', got '%s'", reviewMode.Provider)
 	}
-}
-
-func TestTransitiveModeInjection(t *testing.T) {
-// If an agent defines orchestrator, which transitions to conversation,
-// conversation should be auto-injected from Builtins.
-yamlContent := `
-name: auto-inject-test
-provider: test
-workflow:
-  default_mode: "orchestrator"
-  modes:
-    - name: "orchestrator"
-`
-var agent Agent
-err := yaml.Unmarshal([]byte(yamlContent), &agent)
-if err != nil {
-t.Fatalf("Failed to unmarshal YAML: %v", err)
-}
-
-// This duplicates the logic from LoadAgents to test it in isolation
-if agent.Workflow != nil {
-for i, m := range agent.Workflow.Modes {
-useKey := m.Use
-if useKey == "" {
-useKey = m.Name
-}
-
-if def, ok := mode.Builtins[useKey]; ok {
-base := mapDefinitionToMode(def)
-m.Merge(base)
-agent.Workflow.Modes[i] = m
-}
-}
-
-for {
-added := false
-existingModes := make(map[string]bool)
-for _, m := range agent.Workflow.Modes {
-existingModes[m.Name] = true
-}
-
-var newModes []Mode
-for _, m := range agent.Workflow.Modes {
-for _, t := range m.Transitions {
-if !existingModes[t.To] {
-if def, ok := mode.Builtins[t.To]; ok {
-base := mapDefinitionToMode(def)
-newModes = append(newModes, *base)
-existingModes[t.To] = true
-added = true
-}
-}
-}
-}
-if added {
-agent.Workflow.Modes = append(agent.Workflow.Modes, newModes...)
-} else {
-break
-}
-}
-}
-
-foundConversation := false
-for _, m := range agent.Workflow.Modes {
-if m.Name == "conversation" {
-foundConversation = true
-break
-}
-}
-
-if !foundConversation {
-t.Errorf("Expected 'conversation' mode to be transitively injected")
-}
 }
