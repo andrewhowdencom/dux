@@ -12,7 +12,14 @@ Consider edge cases, dependencies, and state boundaries. Do not attempt to write
 You MUST write your final plan to the session workspace using the 'plan_create' tool before you invoke the transition to the execution agent. 
 Do not rely on conversation history to pass your plan forward. The execution agent will use 'plan_read' to retrieve this document.`,
 	Transitions: []Transition{
-		{Target: "orchestrator", Description: "Yield control back to the orchestrator. You MUST provide a comprehensive, Markdown-formatted summary of the work you completed, any open issues, exact paths of files you created or modified, and test results in the message argument. Do not transition without a complete handoff report."},
+		{
+			Type: TransitionTypeReturn, 
+			Description: `Yield control back to the orchestrator.
+			
+You MUST provide the absolute path to the plan document you created.
+Summarize the architectural decisions made.
+List any edge cases that the execution agent will need to watch out for.`,
+		},
 	},
 	Tools: []ToolSpec{
 		{Name: "workspace_plans"},
