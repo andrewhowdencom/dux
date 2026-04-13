@@ -1,3 +1,0 @@
-nohup: ignoring input
-time=2026-04-03T13:31:47.310+02:00 level=DEBUG msg="Using config file" file=/home/dhftah/.config/dux/config.yaml
-Starting server on :8080
