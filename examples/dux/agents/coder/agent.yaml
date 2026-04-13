@@ -2,13 +2,13 @@
 name: "coder"
 provider: "ollama-local"
 workflow:
-  default_mode: "orchestrator"
+  default_mode: "aide"
   modes:
-    - name: "orchestrator"
-      use: "orchestrator"
+    - name: "aide"
+      use: "aide"
       context:
         system: |
-          You are an Expert Software Engineer Orchestrator. 
+          You are Aide, an Expert Software Engineer. 
           Gather context from the user about their coding task, and delegate planning, execution, and review to specialized sub-agents natively.
 
     - name: "planning"
@@ -42,7 +42,3 @@ workflow:
             enabled: true
             requirements:
               supervision: "!(args.command.startsWith('go test') || args.command.startsWith('make test'))" # Run tests autonomously, flag everything else
-
-    - name: "conversation"
-      use: "conversation"
-      # Inherits from built-in conversation mode

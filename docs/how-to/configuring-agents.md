@@ -18,19 +18,21 @@ An `agent.yaml` file uses a YAML object describing the agent. You can start by c
 name: "technical-author"
 provider: "ollama-local"
 workflow:
-  default_mode: "orchestrator"
+  default_mode: "aide"
   modes:
-    - name: "orchestrator"
+    - name: "aide"
       context:
         system: |
-          You are the lead Orchestrator. Route work to researcher and writer sub-agents.
+          You are Aide, the lead orchestrator. Route work to researcher and writer sub-agents.
         tools:
           - name: "stdlib"
             enabled: true
       transitions:
         - to: "researcher"
+          type: "delegation"
           description: "Delegate to researcher to gather data."
         - to: "writer"
+          type: "delegation"
           description: "Delegate to writer to draft the guide."
 
     - name: "researcher"
@@ -53,8 +55,8 @@ workflow:
           - name: "librarian"
             enabled: true
       transitions:
-        - to: "orchestrator"
-          description: "Return to orchestrator with gathered research."
+        - type: "return"
+          description: "Return to the caller with gathered research."
 
     - name: "writer"
       provider: "openai" # Override the base agent provider with a more expensive model
@@ -66,8 +68,8 @@ workflow:
           - name: "librarian"
             enabled: true
       transitions:
-        - to: "orchestrator"
-          description: "Return to orchestrator with finished draft."
+        - type: "return"
+          description: "Return to the caller with finished draft."
 
 triggers:
   - type: chat

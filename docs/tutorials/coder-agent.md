@@ -22,12 +22,12 @@ Create an entry for the Coder agent:
 name: "coder"
 provider: "ollama-local" # Substitute with your configured provider
 workflow:
-  default_mode: "orchestrator"
+  default_mode: "aide"
   modes:
-    - name: "orchestrator"
+    - name: "aide"
       context:
         system: |
-          You are an Expert Software Engineer Orchestrator. 
+          You are Aide, an Expert Software Engineer. 
           Gather context from the user about their coding task, and delegate planning, execution, and review to specialized sub-agents natively.
 
     - name: "planning"
@@ -58,9 +58,6 @@ workflow:
             enabled: true
             requirements:
               supervision: "!(args.command.startsWith('go test') || args.command.startsWith('make test'))" # Run tests autonomously, flag everything else
-
-    - name: "conversation"
-      # Inherits from built-in conversation mode
 ```
 
 ### Go Library Example
@@ -77,7 +74,7 @@ import (
 engine := adapter.New(
 	adapter.WithProvider(prv),
 	adapter.WithWorkingMemory(working.NewInMemory()),
-	adapter.WithSystemPrompt("You are an Expert Software Engineer Orchestrator. Gather context from the user about their coding task, and delegate planning, execution, and review to specialized sub-agents natively."),
+	adapter.WithSystemPrompt("You are Aide, an Expert Software Engineer. Gather context from the user about their coding task, and delegate planning, execution, and review to specialized sub-agents natively."),
 )
 ```
 
