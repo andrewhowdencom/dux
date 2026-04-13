@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/adrg/xdg"
@@ -108,7 +109,7 @@ func NewEngine(
 			if cleanup != nil {
 				allCleanups = append(allCleanups, cleanup)
 			}
-			
+
 			// We always return the configuration of the latest mode evaluated requested by the caller
 			selectedCfg = cfg
 
@@ -138,7 +139,7 @@ func NewEngine(
 	} else {
 		mem = working.NewInMemory()
 	}
-	
+
 	var contextCfg *config.AgentContext
 	var fallbackProvider string
 	if agt != nil {
@@ -156,7 +157,6 @@ func NewEngine(
 
 	return adapter.New(opts...), cfg, mem, globalCleanup, nil
 }
-
 
 func compileOptions(
 	ctx context.Context,
@@ -218,7 +218,7 @@ func compileOptions(
 		if t.Requirements.Supervision != nil {
 			requiresSupervision[name] = t.Requirements.Supervision
 		} else {
-			if (len(name) >= 9 && name[:9] == "semantic_") || (len(name) >= 14 && name[:14] == "transition_to_") || name == "read_working_memory" {
+			if strings.HasPrefix(name, "semantic_") || strings.HasPrefix(name, "switch_to_") || strings.HasPrefix(name, "delegate_") || strings.HasPrefix(name, "handover_") || strings.HasPrefix(name, "transition_") || name == "read_working_memory" {
 				requiresSupervision[name] = false
 			} else {
 				requiresSupervision[name] = true
@@ -270,8 +270,6 @@ func compileOptions(
 		resolvers = append(resolvers, binary.NewProvider(bCfg.Name, bCfg.Binary))
 	}
 
-
-	
 	// Inject standard transition tools statically
 	if len(transitionTools) > 0 {
 		resolvers = append(resolvers, static.New("transitions", transitionTools...))

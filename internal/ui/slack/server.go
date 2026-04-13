@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sync"
 	"strings"
+	"sync"
 
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	pkgui "github.com/andrewhowdencom/dux/pkg/ui"
 	"github.com/slack-go/slack"
-	"github.com/slack-go/slack/socketmode"
 	"github.com/slack-go/slack/slackevents"
+	"github.com/slack-go/slack/socketmode"
 )
 
 type Streamer interface {
@@ -49,13 +49,13 @@ type Session struct {
 }
 
 type Server struct {
-	api            *slack.Client
-	socketClient   *socketmode.Client
-	sessionsMutex  sync.RWMutex
-	sessions       map[string]*Session
-	engineFactory  EngineFactory
-	cfg            Config
-	botID          string
+	api           *slack.Client
+	socketClient  *socketmode.Client
+	sessionsMutex sync.RWMutex
+	sessions      map[string]*Session
+	engineFactory EngineFactory
+	cfg           Config
+	botID         string
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -177,7 +177,7 @@ func (s *Server) startWebhook(ctx context.Context) error {
 }
 
 func (s *Server) webhookHandler(w http.ResponseWriter, r *http.Request) {
-    // TODO: proper signature verification if signing secret provided
+	// TODO: proper signature verification if signing secret provided
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -218,7 +218,7 @@ func (s *Server) handleInteractive(interaction slack.InteractionCallback) {
 		if interaction.Message.ThreadTimestamp != "" {
 			sessID = interaction.Channel.ID + "-" + interaction.Message.ThreadTimestamp
 		}
-		
+
 		s.sessionsMutex.RLock()
 		sess, ok := s.sessions[sessID]
 		s.sessionsMutex.RUnlock()
@@ -265,7 +265,7 @@ func (s *Server) getSession(sessID, channelID, threadTS string) *Session {
 	hitl := NewSlackHITL(s.api, channelID, threadTS, s.cfg.AgentName)
 	baseCtx, cancel := context.WithCancel(context.Background())
 	ctx := llm.WithSessionID(baseCtx, "slack-"+sessID)
-	
+
 	sess := &Session{
 		ID:        sessID,
 		ChannelID: channelID,
@@ -319,9 +319,9 @@ func (s *Server) handleMessage(sess *Session, text string) {
 	defer stopWorker()
 
 	session := &pkgui.ChatSession{
-		ID:      "slack-" + sess.ID,
-		Engine:  sess.Engine,
-		View:    st,
+		ID:     "slack-" + sess.ID,
+		Engine: sess.Engine,
+		View:   st,
 	}
 
 	if err := session.StreamQuery(sess.Ctx, text); err != nil {

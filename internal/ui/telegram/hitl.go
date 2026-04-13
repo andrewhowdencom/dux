@@ -43,9 +43,9 @@ func (h *TelegramHITL) ApproveTool(ctx context.Context, req llm.ToolRequestPart)
 	text := fmt.Sprintf("🔐 Tool Approval Required\n\nTool: %s\nArgs: %s", req.Name, argsStr)
 
 	msg := tgbotapi.NewMessage(h.chatID, text)
-	
+
 	shortID := generateShortID()
-	
+
 	btnApprove := tgbotapi.NewInlineKeyboardButtonData("Approve", "a_"+shortID)
 	btnDeny := tgbotapi.NewInlineKeyboardButtonData("Deny", "d_"+shortID)
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
@@ -111,7 +111,7 @@ func (h *TelegramHITL) Resolve(query *tgbotapi.CallbackQuery) error {
 	if approved {
 		status = "Approved ✅"
 	}
-	
+
 	newText := fmt.Sprintf("%s\n\nStatus: %s", query.Message.Text, status)
 	edit := tgbotapi.NewEditMessageText(h.chatID, query.Message.MessageID, newText)
 	_, _ = h.bot.Send(edit)

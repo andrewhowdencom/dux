@@ -31,9 +31,9 @@ type Session struct {
 }
 
 type Server struct {
-	bot        *tgbotapi.BotAPI
-	whitelist  map[int64]bool
-	agentsDir  string
+	bot       *tgbotapi.BotAPI
+	whitelist map[int64]bool
+	agentsDir string
 
 	sessionsMutex sync.RWMutex
 	sessions      map[int64]*Session
@@ -65,10 +65,10 @@ func NewServer(cfg Config) (*Server, error) {
 	}
 
 	return &Server{
-		bot:        bot,
-		whitelist:  wl,
-		agentsDir:  cfg.AgentsFile,
-		sessions:   make(map[int64]*Session),
+		bot:       bot,
+		whitelist: wl,
+		agentsDir: cfg.AgentsFile,
+		sessions:  make(map[int64]*Session),
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
 			engine, cfg, _, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 			return engine, cfg, cleanup, err
@@ -85,7 +85,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// Note: We leave Webhook implementation for the handler below, or if webhooks were pre-configured
 	// For simplicity in CLI binding, typical webhook usage with tgbotapi starts an http listener
 	// and creates a webhook URL. If webhook url is empty, we fall back to polling.
-	
+
 	// This function starts polling by default, or you can route HTTP webhooks to the updates channel externally.
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -120,7 +120,7 @@ func (s *Server) StartWebhook(ctx context.Context, webhookURL, address string) e
 	}
 
 	updates := s.bot.ListenForWebhook("/")
-	
+
 	go func() {
 		if err := http.ListenAndServe(address, nil); err != nil {
 			slog.Error("Webhook HTTP Server failed", "error", err)
@@ -240,14 +240,14 @@ func (s *Server) handleMessage(sess *Session, msg *tgbotapi.Message) {
 		s.sessionsMutex.Unlock()
 		sess.Cancel()
 	}
-	
+
 	stopWorker := st.StartWorker(sess.Ctx)
 	defer stopWorker()
 
 	session := &pkgui.ChatSession{
-		ID:      fmt.Sprintf("telegram-%d", sess.ChatID),
-		Engine:  sess.Engine,
-		View:    st,
+		ID:     fmt.Sprintf("telegram-%d", sess.ChatID),
+		Engine: sess.Engine,
+		View:   st,
 	}
 
 	if err := session.StreamQuery(sess.Ctx, msg.Text); err != nil {

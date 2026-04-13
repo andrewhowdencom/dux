@@ -198,9 +198,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session := &pkgui.ChatSession{
-		ID:      sessionID,
-		Engine:  sess.Engine,
-		View:    view,
+		ID:     sessionID,
+		Engine: sess.Engine,
+		View:   view,
 	}
 
 	if err := session.StreamQuery(ctx, payload.Prompt); err != nil {

@@ -93,7 +93,7 @@ func (st *StreamTracker) RenderError(err error) {
 
 func (st *StreamTracker) PromptHITL(req *llm.ToolRequestPart) {
 	st.Flush()
-	
+
 	st.mu.Lock()
 	st.messageTS = ""
 	st.text = ""
@@ -121,7 +121,7 @@ func (st *StreamTracker) tick() {
 		st.mu.Unlock()
 		return
 	}
-	
+
 	currentText := st.text
 	st.pendingUpdate = false
 	st.mu.Unlock()

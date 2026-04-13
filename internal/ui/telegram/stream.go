@@ -83,7 +83,7 @@ func (st *StreamTracker) RenderError(err error) {
 
 func (st *StreamTracker) PromptHITL(req *llm.ToolRequestPart) {
 	st.Flush()
-	
+
 	st.mu.Lock()
 	st.messageID = 0
 	st.text = ""
@@ -111,9 +111,9 @@ func (st *StreamTracker) tick() {
 		st.mu.Unlock()
 		return
 	}
-	
+
 	var b strings.Builder
-	
+
 	if st.text != "" {
 		b.WriteString(html.EscapeString(st.text))
 	}
@@ -126,7 +126,7 @@ func (st *StreamTracker) tick() {
 		if len(currentText) > 4000 {
 			currentText = currentText[:4000] + "\n...[truncated]"
 		}
-		
+
 		edit := tgbotapi.NewEditMessageText(st.chatID, st.messageID, currentText)
 		edit.ParseMode = tgbotapi.ModeHTML
 		_, err := st.bot.Send(edit)

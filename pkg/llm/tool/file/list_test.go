@@ -55,8 +55,8 @@ func TestListTool_Execute(t *testing.T) {
 		notWantPaths  []string
 	}{
 		{
-			name: "missing path",
-			args: map[string]interface{}{},
+			name:          "missing path",
+			args:          map[string]interface{}{},
 			wantError:     true,
 			wantErrSubstr: "missing required argument 'path'",
 		},

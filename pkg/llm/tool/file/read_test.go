@@ -36,9 +36,9 @@ func TestReadTool_Execute(t *testing.T) {
 		notWantSubstr []string
 	}{
 		{
-			name: "missing path",
-			args: map[string]interface{}{},
-			wantError: true,
+			name:          "missing path",
+			args:          map[string]interface{}{},
+			wantError:     true,
 			wantErrSubstr: "missing required argument",
 		},
 		{
@@ -75,7 +75,7 @@ func TestReadTool_Execute(t *testing.T) {
 			args: map[string]interface{}{
 				"path": binFilePath,
 			},
-			wantError: true,
+			wantError:     true,
 			wantErrSubstr: "binary file",
 		},
 	}

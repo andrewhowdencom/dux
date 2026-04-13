@@ -141,14 +141,14 @@ func (h *SlackHITL) Resolve(interaction slack.InteractionCallback) error {
 		// Just take the first block and append status
 		statusTxt := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf("\n\n*Status:* %s", status), false, false)
 		statusSection := slack.NewSectionBlock(statusTxt, nil, nil)
-		
+
 		opts := []slack.MsgOption{
 			slack.MsgOptionBlocks(blocks[0], statusSection),
 		}
 		if h.agentName != "" {
 			opts = append(opts, slack.MsgOptionUsername(h.agentName))
 		}
-		
+
 		_, _, _, err := h.api.UpdateMessage(interaction.Channel.ID, interaction.Message.Timestamp, opts...)
 		if err != nil {
 			slog.Error("Failed to update HITL message in Slack", "err", err)

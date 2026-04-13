@@ -26,12 +26,15 @@ var (
 	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 )
 
+type chatBlock struct {
+	kind    string // "text", "thinking", "tool"
+	content string
+}
+
 type chatMessage struct {
 	role      string
 	name      string
-	content   string
-	thinking  string
-	toolCalls []string
+	blocks    []*chatBlock
 	telemetry *llm.TelemetryPart
 }
 
@@ -161,25 +164,34 @@ func newUIModel(ctx context.Context, sessionID string, initialMessages []llm.Mes
 			continue // System prompts usually shouldn't clutter the UI chat
 		}
 		cm := chatMessage{
-			role:    msg.Identity.Role,
-			name:    msg.Identity.Name,
-			content: msg.Text(),
+			role: msg.Identity.Role,
+			name: msg.Identity.Name,
 		}
 		for _, rawP := range msg.Parts {
 			switch p := rawP.(type) {
+			case llm.TextPart:
+				if len(cm.blocks) > 0 && cm.blocks[len(cm.blocks)-1].kind == "text" {
+					cm.blocks[len(cm.blocks)-1].content += string(p)
+				} else {
+					cm.blocks = append(cm.blocks, &chatBlock{kind: "text", content: string(p)})
+				}
 			case llm.ReasoningPart:
-				cm.thinking += string(p)
+				if len(cm.blocks) > 0 && cm.blocks[len(cm.blocks)-1].kind == "thinking" {
+					cm.blocks[len(cm.blocks)-1].content += string(p)
+				} else {
+					cm.blocks = append(cm.blocks, &chatBlock{kind: "thinking", content: string(p)})
+				}
 			case llm.ToolRequestPart:
-				cm.toolCalls = append(cm.toolCalls, fmt.Sprintf("Tool Call: %s(%v)", p.Name, p.Args))
+				cm.blocks = append(cm.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("Tool Call: %s(%v)", p.Name, p.Args)})
 			case llm.ToolResultPart:
 				resStr := fmt.Sprintf("%v", p.Result)
 				if len(resStr) > 500 {
 					resStr = resStr[:500] + " ... (truncated)"
 				}
 				if p.IsError {
-					cm.toolCalls = append(cm.toolCalls, fmt.Sprintf("↳ Error (%s): %s", p.Name, resStr))
+					cm.blocks = append(cm.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("↳ Error (%s): %s", p.Name, resStr)})
 				} else {
-					cm.toolCalls = append(cm.toolCalls, fmt.Sprintf("↳ Result (%s): %s", p.Name, strings.ReplaceAll(resStr, "\n", "\\n")))
+					cm.blocks = append(cm.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("↳ Result (%s): %s", p.Name, strings.ReplaceAll(resStr, "\n", "\\n"))})
 				}
 			case llm.TelemetryPart:
 				if cm.telemetry == nil {
@@ -274,8 +286,8 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Add user message
 			m.messages = append(m.messages, chatMessage{
-				role:    "user",
-				content: v,
+				role:   "user",
+				blocks: []*chatBlock{{kind: "text", content: v}},
 			})
 			m.textarea.Reset()
 			m.updateViewport()
@@ -334,20 +346,32 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.isStreaming = false
 			m.updateViewport()
 		case "text":
-			m.messages[lastIdx].content += msg.Content
+			lastMsg := &m.messages[lastIdx]
+			if len(lastMsg.blocks) > 0 && lastMsg.blocks[len(lastMsg.blocks)-1].kind == "text" {
+				lastMsg.blocks[len(lastMsg.blocks)-1].content += msg.Content
+			} else {
+				lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "text", content: msg.Content})
+			}
 		case "thinking":
-			m.messages[lastIdx].thinking += msg.Content
+			lastMsg := &m.messages[lastIdx]
+			if len(lastMsg.blocks) > 0 && lastMsg.blocks[len(lastMsg.blocks)-1].kind == "thinking" {
+				lastMsg.blocks[len(lastMsg.blocks)-1].content += msg.Content
+			} else {
+				lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "thinking", content: msg.Content})
+			}
 		case "tool_req":
-			m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("Tool Call: %s(%v)", msg.Name, msg.Args))
+			lastMsg := &m.messages[lastIdx]
+			lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("Tool Call: %s(%v)", msg.Name, msg.Args)})
 		case "tool_res":
+			lastMsg := &m.messages[lastIdx]
 			resStr := fmt.Sprintf("%v", msg.Result)
 			if len(resStr) > 500 {
 				resStr = resStr[:500] + " ... (truncated)"
 			}
 			if msg.IsError {
-				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Error (%s): %s", msg.Name, resStr))
+				lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("↳ Error (%s): %s", msg.Name, resStr)})
 			} else {
-				m.messages[lastIdx].toolCalls = append(m.messages[lastIdx].toolCalls, fmt.Sprintf("↳ Result (%s): %s", msg.Name, strings.ReplaceAll(resStr, "\n", "\\n")))
+				lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("↳ Result (%s): %s", msg.Name, strings.ReplaceAll(resStr, "\n", "\\n"))})
 			}
 		case "telemetry":
 			if m.messages[lastIdx].telemetry == nil {
@@ -366,7 +390,7 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "session_reset":
 			m.sessionID = uuid.New().String()
 			m.messages = []chatMessage{
-				{role: "assistant", content: "Started a new conversation session."},
+				{role: "assistant", blocks: []*chatBlock{{kind: "text", content: "Started a new conversation session."}}},
 			}
 			m.textarea.Reset()
 			m.updateViewport()
@@ -406,31 +430,32 @@ func (m *uiModel) updateViewport() {
 
 		b.WriteString(fmt.Sprintf("%s:\n", roleTitle))
 
-		if msg.thinking != "" {
-			wrappedThinking := wordwrap.String("Thinking:\n"+msg.thinking, m.viewport.Width)
-			b.WriteString(thinkingStyle.Render(wrappedThinking))
-			b.WriteString("\n\n")
-		}
-
-		if len(msg.toolCalls) > 0 {
-			b.WriteString(toolStyle.Render(strings.Join(msg.toolCalls, "\n")))
-			b.WriteString("\n\n")
-		}
-
-		if msg.content != "" {
-			var formatStr string
-			if m.renderer != nil {
-				out, err := m.renderer.Render(msg.content)
-				if err == nil {
-					formatStr = out
-				} else {
-					formatStr = msg.content // Fallback
+		for _, block := range msg.blocks {
+			switch block.kind {
+			case "thinking":
+				wrappedThinking := wordwrap.String("Thinking:\n"+block.content, m.viewport.Width)
+				b.WriteString(thinkingStyle.Render(wrappedThinking))
+				b.WriteString("\n\n")
+			case "tool":
+				b.WriteString(toolStyle.Render(block.content))
+				b.WriteString("\n\n")
+			case "text":
+				if block.content != "" {
+					var formatStr string
+					if m.renderer != nil {
+						out, err := m.renderer.Render(block.content)
+						if err == nil {
+							formatStr = out
+						} else {
+							formatStr = block.content // Fallback
+						}
+					} else {
+						formatStr = block.content
+					}
+					b.WriteString(strings.TrimSpace(formatStr))
+					b.WriteString("\n\n")
 				}
-			} else {
-				formatStr = msg.content
 			}
-			b.WriteString(strings.TrimSpace(formatStr))
-			b.WriteString("\n")
 		}
 
 		if msg.telemetry != nil {
@@ -438,14 +463,14 @@ func (m *uiModel) updateViewport() {
 			if msg.telemetry.ReasoningTokens > 0 {
 				res = fmt.Sprintf(" (including %d reasoning)", msg.telemetry.ReasoningTokens)
 			}
-			telemetryStr := fmt.Sprintf("\n⚡ %.1fs | Tokens: %d in, %d out%s",
+			telemetryStr := fmt.Sprintf("⚡ %.1fs | Tokens: %d in, %d out%s",
 				msg.telemetry.Duration.Seconds(),
 				msg.telemetry.InputTokens,
 				msg.telemetry.OutputTokens,
 				res,
 			)
 			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(telemetryStr))
-			b.WriteString("\n")
+			b.WriteString("\n\n")
 		}
 
 		b.WriteString("\n")
