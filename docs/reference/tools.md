@@ -26,6 +26,10 @@ Lists files and directories at a specified path.
 Reads the contents of a specified file.
 - **Behavior**: Reads up to 800 lines by default. Supports `start_line` and `end_line` parameters for pagination on large files. Features built-in binary detection and will return an error if a non-text format is encountered. 
 
+#### `file_search`
+Searches for text or regex patterns recursively in directories or a specific file.
+- **Behavior**: Mimics `grep`, returning file paths and line numbers that match the query string. Skips hidden files by default and uses heuristic binary file detection to prevent noisy output. Limits matches to avoid token explosion.
+
 #### `file_write`
 Creates a new file or completely overwrites an existing file with the provided content.
 - **Behavior**: Automatically creates intermediate parent directories (`mkdir -p` behavior) if they do not exist.

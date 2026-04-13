@@ -139,7 +139,7 @@ func NewResolversFromConfig(cfgs []string, deps ResolverDependencies) ([]llm.Too
 				stdlibtool.NewURLEncode(), stdlibtool.NewURLDecode(), stdlibtool.NewSleep(),
 			))
 		case "filesystem":
-			results = append(results, static_resolver.New("filesystem", filetool.NewRead(), filetool.NewWrite(), filetool.NewPatch(), filetool.NewList()))
+			results = append(results, static_resolver.New("filesystem", filetool.NewRead(), filetool.NewWrite(), filetool.NewPatch(), filetool.NewList(), filetool.NewSearch()))
 		case "bash":
 			results = append(results, static_resolver.New("bash", bashtool.New()))
 		case "workspace_plans":
