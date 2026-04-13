@@ -9,11 +9,8 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/binary"
-	"github.com/andrewhowdencom/dux/pkg/llm/tool/librarian"
-	"github.com/andrewhowdencom/dux/pkg/llm/tool/semantic"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/transition"
-	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
 	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
@@ -172,7 +169,6 @@ func compileOptions(
 	var mcpConfigs []config.ToolConfig
 	var binaryConfigs []config.ToolConfig
 	timeouts := make(map[string]time.Duration)
-	var semanticToolNames []string
 
 	for name, t := range toolMap {
 		if !t.Enabled {
@@ -201,8 +197,6 @@ func compileOptions(
 			mcpConfigs = append(mcpConfigs, t)
 		} else if t.Binary != nil {
 			binaryConfigs = append(binaryConfigs, t)
-		} else if name == "semantic" || (len(name) >= 9 && name[:9] == "semantic_") {
-			semanticToolNames = append(semanticToolNames, name)
 		} else {
 			if len(t.Tools) == 0 {
 				nativeToolNames = append(nativeToolNames, name)
@@ -210,7 +204,7 @@ func compileOptions(
 		}
 	}
 
-	res, err := NewResolversFromConfig(nativeToolNames)
+	res, err := NewResolversFromConfig(nativeToolNames, ResolverDependencies{GlobalMemory: globalMem})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to initialize native tools: %w", err)
 	}
@@ -236,19 +230,7 @@ func compileOptions(
 		resolvers = append(resolvers, binary.NewProvider(bCfg.Name, bCfg.Binary))
 	}
 
-	if len(semanticToolNames) > 0 {
-		var dbPath = ":memory:"
-		store, err := sqlite.NewStore(dbPath)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
-		}
-		semProvider := semantic.NewProvider(store)
-		resolvers = append(resolvers, semProvider)
-	}
 
-	if globalMem != nil {
-		resolvers = append(resolvers, librarian.NewProvider(globalMem))
-	}
 	
 	// Inject standard transition tools statically
 	if len(transitionTools) > 0 {

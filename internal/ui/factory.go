@@ -15,9 +15,12 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/tool"
 	bashtool "github.com/andrewhowdencom/dux/pkg/llm/tool/bash"
 	filetool "github.com/andrewhowdencom/dux/pkg/llm/tool/file"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/librarian"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/semantic"
 	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	stdlibtool "github.com/andrewhowdencom/dux/pkg/llm/tool/stdlib"
 	workspacetool "github.com/andrewhowdencom/dux/pkg/llm/tool/workspace"
+	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -115,9 +118,15 @@ func NewEnrichersFromConfig(cfgs []config.Enricher) ([]llm.Injector, error) {
 	return results, nil
 }
 
+// ResolverDependencies holds runtime state required by built-in tool resolvers.
+type ResolverDependencies struct {
+	GlobalMemory llm.Injector
+}
+
 // NewResolversFromConfig builds an array of tool resolvers from string representations.
-func NewResolversFromConfig(cfgs []string) ([]llm.ToolProvider, error) {
+func NewResolversFromConfig(cfgs []string, deps ResolverDependencies) ([]llm.ToolProvider, error) {
 	var results []llm.ToolProvider
+	var semanticIncluded bool
 
 	for _, c := range cfgs {
 		switch c {
@@ -138,8 +147,28 @@ func NewResolversFromConfig(cfgs []string) ([]llm.ToolProvider, error) {
 				&workspacetool.PlanCreateTool{}, &workspacetool.PlanReadTool{},
 				&workspacetool.PlanUpdateTool{}, &workspacetool.PlanListTool{},
 			))
+		case "librarian":
+			if deps.GlobalMemory != nil {
+				results = append(results, librarian.NewProvider(deps.GlobalMemory))
+			} else {
+				return nil, fmt.Errorf("librarian tool requested but no global memory provided")
+			}
 		default:
-			return nil, fmt.Errorf("unknown tool bundle/name: %s", c)
+			if c == "semantic" || (len(c) >= 9 && c[:9] == "semantic_") {
+				if !semanticIncluded {
+					dbPath := ":memory:"
+					store, err := sqlite.NewStore(dbPath)
+					if err != nil {
+						return nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
+					}
+					results = append(results, semantic.NewProvider(store))
+					semanticIncluded = true
+				}
+			} else if c == "read_working_memory" {
+				// Typically satisfied by librarian, skip to avoid erroring if specified explicitly
+			} else {
+				return nil, fmt.Errorf("unknown tool bundle/name: %s", c)
+			}
 		}
 	}
 
