@@ -33,6 +33,10 @@ workflow:
             enabled: true
             requirements:
               supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
+          - name: "workspace_plans"
+            enabled: true
+          - name: "librarian"
+            enabled: true
       transitions:
         - to: "orchestrator"
           description: "Yield control back to the orchestrator with a comprehensive Markdown summary of the architectural plans."
@@ -50,6 +54,10 @@ workflow:
             enabled: true
             requirements:
               supervision: false # Autonomous execution
+          - name: "workspace_plans"
+            enabled: true
+          - name: "librarian"
+            enabled: true
       transitions:
         - to: "orchestrator"
           description: "Yield control back to the orchestrator with a detailed summary of exact code modifications and tests run."
@@ -62,6 +70,10 @@ workflow:
             enabled: true
             requirements:
               supervision: "!(args.command.startsWith('go test') || args.command.startsWith('make test'))" # Run tests autonomously, flag everything else
+          - name: "workspace_plans"
+            enabled: true
+          - name: "librarian"
+            enabled: true
       transitions:
         - to: "orchestrator"
           description: "Yield control back to the orchestrator with passing/failing QA review feedback."
