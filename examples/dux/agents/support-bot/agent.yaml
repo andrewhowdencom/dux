@@ -17,10 +17,6 @@ workflow:
             enabled: true
             requirements:
               supervision: false
-          - name: "file_read"
-            enabled: true
-          - name: "file_list"
-            enabled: true
 
     - name: "execution"
       provider: "claude-3-opus" # Override with a highly capable model for complex coding

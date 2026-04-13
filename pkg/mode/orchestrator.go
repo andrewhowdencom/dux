@@ -15,5 +15,5 @@ When sub-agents complete their tasks, they will return control to you with a sum
 		{Target: "execution", Description: "Delegate concrete tasks, code writing, and terminal commands. Use when explicit instructions or plans already exist."},
 		{Target: "review", Description: "Delegate quality assurance and code review formatting."},
 	},
-	Tools: []string{},
+	Tools: []ToolSpec{},
 }

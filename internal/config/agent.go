@@ -164,10 +164,14 @@ func mapDefinitionToMode(def mode.Definition) *Mode {
 			m.Context = &AgentContext{}
 		}
 		for _, t := range def.Tools {
-			m.Context.Tools = append(m.Context.Tools, ToolConfig{
-				Name:    t,
+			tc := ToolConfig{
+				Name:    t.Name,
 				Enabled: true,
-			})
+			}
+			if t.Supervision != nil {
+				tc.Requirements.Supervision = t.Supervision
+			}
+			m.Context.Tools = append(m.Context.Tools, tc)
 		}
 	}
 	return m

@@ -130,10 +130,6 @@ func NewResolversFromConfig(cfgs []string) ([]llm.ToolProvider, error) {
 			))
 		case "filesystem":
 			results = append(results, static_resolver.New("filesystem", filetool.NewRead(), filetool.NewWrite(), filetool.NewPatch(), filetool.NewList()))
-		case "file_read":
-			results = append(results, static_resolver.New("file_read", filetool.NewRead()))
-		case "file_list":
-			results = append(results, static_resolver.New("file_list", filetool.NewList()))
 		case "bash":
 			results = append(results, static_resolver.New("bash", bashtool.New()))
 		default:
