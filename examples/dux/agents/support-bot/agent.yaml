@@ -17,10 +17,10 @@ workflow:
             enabled: true
             requirements:
               supervision: false
-          - name: "filesystem" # The architect can read files to plan, but should require review to write.
+          - name: "file_read"
             enabled: true
-            requirements:
-              supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
+          - name: "file_list"
+            enabled: true
 
     - name: "execution"
       provider: "claude-3-opus" # Override with a highly capable model for complex coding
