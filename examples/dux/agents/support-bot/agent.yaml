@@ -38,3 +38,6 @@ workflow:
             enabled: true
             requirements:
               supervision: "!(args.command.startsWith('go test') || args.command.startsWith('make test'))" # Run tests autonomously, flag everything else
+
+    - name: "conversation"
+      # Inherits from built-in conversation mode
