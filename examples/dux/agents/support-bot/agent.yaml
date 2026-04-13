@@ -5,14 +5,12 @@ workflow:
   default_mode: "orchestrator"
   modes:
     - name: "orchestrator"
-      use: "orchestrator"
       context:
         system: |
           You are a Tier 3 Support Orchestrator. 
           Gather context from the user and triage their issue, delegating tasks to specialized sub-agents natively.
 
     - name: "planning"
-      use: "planning"
       context:
         tools:
           - name: "stdlib"
@@ -25,7 +23,6 @@ workflow:
               supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
 
     - name: "execution"
-      use: "execution"
       provider: "claude-3-opus" # Override with a highly capable model for complex coding
       context:
         tools:
@@ -39,7 +36,6 @@ workflow:
               supervision: false # Autonomous execution
 
     - name: "review"
-      use: "review"
       context:
         tools:
           - name: "bash"

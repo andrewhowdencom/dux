@@ -210,12 +210,15 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 
 		if agent.Workflow != nil {
 			for i, m := range agent.Workflow.Modes {
-				if m.Use != "" {
-					if def, ok := mode.Builtins[m.Use]; ok {
-						base := mapDefinitionToMode(def)
-						m.Merge(base)
-						agent.Workflow.Modes[i] = m
-					}
+				useKey := m.Use
+				if useKey == "" {
+					useKey = m.Name
+				}
+				
+				if def, ok := mode.Builtins[useKey]; ok {
+					base := mapDefinitionToMode(def)
+					m.Merge(base)
+					agent.Workflow.Modes[i] = m
 				}
 			}
 		}
