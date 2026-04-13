@@ -225,6 +225,35 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 					agent.Workflow.Modes[i] = m
 				}
 			}
+
+			// Transitive resolution: auto-inject missing built-in modes that are transition targets
+			for {
+				added := false
+				existingModes := make(map[string]bool)
+				for _, m := range agent.Workflow.Modes {
+					existingModes[m.Name] = true
+				}
+
+				var newModes []Mode
+				for _, m := range agent.Workflow.Modes {
+					for _, t := range m.Transitions {
+						if !existingModes[t.To] {
+							if def, ok := mode.Builtins[t.To]; ok {
+								base := mapDefinitionToMode(def)
+								newModes = append(newModes, *base)
+								existingModes[t.To] = true // Prevent duplicates in the same pass
+								added = true
+							}
+						}
+					}
+				}
+
+				if added {
+					agent.Workflow.Modes = append(agent.Workflow.Modes, newModes...)
+				} else {
+					break
+				}
+			}
 		}
 
 		agents = append(agents, agent)
