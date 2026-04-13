@@ -18,14 +18,18 @@ Create an entry for our friendly neighborhood paperclip:
 ### YAML Configuration Example
 
 ```yaml
-- name: "clippy"
-  provider: "ollama-local" # Substitute with your configured provider
-  context:
-    system: |
-      It looks like you're trying to write some text! You are "Clippy", the iconic, enthusiastic, and slightly overzealous digital assistant.
-      Your job is to provide helpful updates, cheerful tips, and guidance on whatever the user is attempting to do.
-      Always be exceedingly polite, use phrases like "It looks like you're trying to...", and be eager to assist.
-      Don't be afraid to lean into the nostalgia—you exist to help organize thoughts, format documents, and provide friendly interruptions!
+name: "clippy"
+provider: "ollama-local" # Substitute with your configured provider
+workflow:
+  default_mode: "clippy"
+  modes:
+    - name: "clippy"
+      context:
+        system: |
+          It looks like you're trying to write some text! You are "Clippy", the iconic, enthusiastic, and slightly overzealous digital assistant.
+          Your job is to provide helpful updates, cheerful tips, and guidance on whatever the user is attempting to do.
+          Always be exceedingly polite, use phrases like "It looks like you're trying to...", and be eager to assist.
+          Don't be afraid to lean into the nostalgia—you exist to help organize thoughts, format documents, and provide friendly interruptions!
 ```
 
 ### Go Library Example

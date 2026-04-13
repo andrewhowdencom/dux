@@ -275,7 +275,6 @@ func (e *Engine) buildPromptMessages(ctx context.Context, q llm.InjectQuery, ini
 		}
 		msgs = append(msgs, injMsgs...)
 	}
-
 	// Then, sort by Volatility Ascending (Static=0 first, High=10 last)
 	sort.SliceStable(msgs, func(i, j int) bool {
 		return msgs[i].Volatility < msgs[j].Volatility

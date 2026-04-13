@@ -1,6 +1,6 @@
-# Building a Q&A Bot Agent
+# Building a Support Bot Agent
 
-This tutorial walks through configuring Dux to act as a **Q&A Bot Agent**. The goal of this agent is to ingest knowledge bases, documentation, or unstructured data and answer user queries accurately based solely on the provided context.
+This tutorial walks through configuring Dux to act as a **Support Bot Agent**. The goal of this agent is to ingest knowledge bases, documentation, or unstructured data and answer user queries accurately based solely on the provided context.
 
 *Note: This document serves as a standard test case for Dux architectural decisions.*
 
@@ -13,19 +13,24 @@ This tutorial walks through configuring Dux to act as a **Q&A Bot Agent**. The g
 
 Dux allows you to define agent "personas" using an `agents/<agent-name>/agent.yaml` file (typically placed in standard XDG config directories like `~/.config/dux/agents/<agent-name>/agent.yaml`).
 
-Create an entry for the Q&A Bot agent:
+Create an entry for the Support Bot agent:
 
 ### YAML Configuration Example
 
 ```yaml
-- name: "qa-bot"
-  provider: "ollama-local" # Substitute with your configured provider
-  context:
-    system: |
-      You are a precise, helpful Q&A Bot.
-      Your job is to answer user questions based on the provided context or knowledge base.
-      If you do not know the answer based on the provided context, clearly state that you do not know.
-      Provide concise, direct answers and optionally cite the relevant part of the source material.
+name: "support-bot"
+provider: "ollama-local" # Substitute with your configured provider
+workflow:
+  default_mode: "support-bot"
+  modes:
+    - name: "support-bot"
+      use: "conversation" # Inherits standard conversational capabilities
+      context:
+        system: |
+          You are a precise, helpful Support Bot.
+          Your job is to answer user questions based on the provided context or knowledge base.
+          If you do not know the answer based on the provided context, clearly state that you do not know.
+          Provide concise, direct answers and optionally cite the relevant part of the source material.
 ```
 
 ### Go Library Example
@@ -42,7 +47,7 @@ import (
 engine := adapter.New(
 	adapter.WithProvider(prv),
 	adapter.WithWorkingMemory(working.NewInMemory()),
-	adapter.WithSystemPrompt("You are a precise, helpful Q&A Bot. Your job is to answer user questions based on the provided context..."),
+	adapter.WithSystemPrompt("You are a precise, helpful Support Bot. Your job is to answer user questions based on the provided context..."),
 )
 ```
 
@@ -51,7 +56,7 @@ engine := adapter.New(
 You can now interact with this agent via the Dux CLI by specifying the `--agent` flag:
 
 ```bash
-dux chat --agent qa-bot
+dux chat --agent support-bot
 ```
 
 When you ask questions in the interface, the agent will reply based on the given context (which can be injected into the chat context or tool outputs).

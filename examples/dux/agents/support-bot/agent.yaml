@@ -1,0 +1,44 @@
+# To install, copy to ~/.config/dux/agents/support-bot/agent.yaml
+name: "support-bot"
+provider: "ollama-local"
+workflow:
+  default_mode: "orchestrator"
+  modes:
+    - name: "orchestrator"
+      context:
+        system: |
+          You are a Tier 3 Support Orchestrator. 
+          Gather context from the user and triage their issue, delegating tasks to specialized sub-agents natively.
+
+    - name: "planning"
+      context:
+        tools:
+          - name: "stdlib"
+            enabled: true
+            requirements:
+              supervision: false
+          - name: "file_read"
+            enabled: true
+          - name: "file_list"
+            enabled: true
+
+    - name: "execution"
+      provider: "claude-3-opus" # Override with a highly capable model for complex coding
+      context:
+        tools:
+          - name: "bash"
+            enabled: true
+            requirements:
+              supervision: false # Autonomous execution
+          - name: "filesystem"
+            enabled: true
+            requirements:
+              supervision: false # Autonomous execution
+
+    - name: "review"
+      context:
+        tools:
+          - name: "bash"
+            enabled: true
+            requirements:
+              supervision: "!(args.command.startsWith('go test') || args.command.startsWith('make test'))" # Run tests autonomously, flag everything else

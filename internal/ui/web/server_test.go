@@ -59,6 +59,7 @@ func TestHandleChat_StreamingNDJSON(t *testing.T) {
 		hitl:          NewWebHITL(),
 		engineFactory: factory,
 		sessionKey:    key,
+		sessions:      make(map[string]*Session),
 	}
 
 	payload := map[string]string{
@@ -115,6 +116,7 @@ func TestHandleChat_EngineError(t *testing.T) {
 		hitl:          NewWebHITL(),
 		engineFactory: factory,
 		sessionKey:    key,
+		sessions:      make(map[string]*Session),
 	}
 
 	payload := map[string]string{"agent": "test-agent", "prompt": "Say hello"}

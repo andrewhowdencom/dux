@@ -16,13 +16,17 @@ Create an agent profile tailored to corporate communication and summarization:
 ### YAML Configuration Example
 
 ```yaml
-- name: "guild-manager"
-  provider: "ollama-local"
-  context:
-    system: |
-      You are the Lead Administrator for the internal Engineering Guild.
-      Your tone should be professional, encouraging, and highly organized.
-      Format all meeting recaps distinctly with Action Items and Key Takeaways.
+name: "guild-manager"
+provider: "ollama-local"
+workflow:
+  default_mode: "administrator"
+  modes:
+    - name: "administrator"
+      context:
+        system: |
+          You are the Lead Administrator for the internal Engineering Guild.
+          Your tone should be professional, encouraging, and highly organized.
+          Format all meeting recaps distinctly with Action Items and Key Takeaways.
 ```
 
 ### Go Library Example

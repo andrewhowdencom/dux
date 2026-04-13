@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/viper"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/andrewhowdencom/dux/pkg/mode"
 )
 
 // Enricher defines the configuration for a context enricher.
@@ -69,11 +71,56 @@ type MCPServer struct {
 	Headers   map[string]string `yaml:"headers,omitempty"`
 }
 
+// ModeTransition defines an automated tool injection to transition between workflow modes.
+type ModeTransition struct {
+	To          string `yaml:"to"`
+	Description string `yaml:"description"`
+}
+
+// Mode represents a specific state in an agent's workflow graph.
+type Mode struct {
+	Name        string           `yaml:"name"`
+	Use         string           `yaml:"use,omitempty"`
+	Provider    string           `yaml:"provider,omitempty"`
+	Context     *AgentContext    `yaml:"context,omitempty"`
+	Transitions []ModeTransition `yaml:"transitions,omitempty"`
+}
+
+// Merge structurally inherits properties from the base mode.
+// Local properties take precedence. Arrays (like tools/enrichers) are appended.
+func (m *Mode) Merge(base *Mode) {
+	if m.Provider == "" {
+		m.Provider = base.Provider
+	}
+
+	if base.Context != nil {
+		if m.Context == nil {
+			m.Context = base.Context
+		} else {
+			if m.Context.System == "" {
+				m.Context.System = base.Context.System
+			}
+			m.Context.Enrichers = append(base.Context.Enrichers, m.Context.Enrichers...)
+			m.Context.Tools = append(base.Context.Tools, m.Context.Tools...)
+		}
+	}
+	if len(m.Transitions) == 0 && len(base.Transitions) > 0 {
+		m.Transitions = base.Transitions
+	}
+}
+
+// Workflow defines the graph of modes a context router traverses.
+type Workflow struct {
+	DefaultMode string `yaml:"default_mode"`
+	Modes       []Mode `yaml:"modes"`
+}
+
 // Agent defines a distinct interactive role combining a provider and dynamic context.
 type Agent struct {
 	Name     string        `yaml:"name"`
 	Provider string        `yaml:"provider"`
 	Context  *AgentContext `yaml:"context,omitempty"`
+	Workflow *Workflow     `yaml:"workflow,omitempty"`
 	Triggers []Trigger     `yaml:"triggers,omitempty"`
 }
 
@@ -93,6 +140,39 @@ func ResolveAgentsDir(path string) string {
 	return p
 }
 
+// mapDefinitionToMode converts a core library mode definition into the parser's schema.
+func mapDefinitionToMode(def mode.Definition) *Mode {
+	m := &Mode{
+		Name: def.Name,
+	}
+	if def.System != "" {
+		m.Context = &AgentContext{
+			System: def.System,
+		}
+	}
+	if len(def.Transitions) > 0 {
+		for _, t := range def.Transitions {
+			m.Transitions = append(m.Transitions, ModeTransition{
+				To:          t.Target,
+				Description: t.Description,
+			})
+		}
+	}
+
+	if len(def.Tools) > 0 {
+		if m.Context == nil {
+			m.Context = &AgentContext{}
+		}
+		for _, t := range def.Tools {
+			m.Context.Tools = append(m.Context.Tools, ToolConfig{
+				Name:    t,
+				Enabled: true,
+			})
+		}
+	}
+	return m
+}
+
 // LoadAgents enumerates all folders within agentsDir, expecting an agent.yaml inside.
 func LoadAgents(agentsDir string) ([]Agent, error) {
 	dir := ResolveAgentsDir(agentsDir)
@@ -110,7 +190,7 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 		if !entry.IsDir() {
 			continue // Only process subdirectories
 		}
-		
+
 		agentFilePath := filepath.Join(dir, entry.Name(), "agent.yaml")
 		b, err := os.ReadFile(agentFilePath)
 		if err != nil {
@@ -124,9 +204,24 @@ func LoadAgents(agentsDir string) ([]Agent, error) {
 		if err := yaml.Unmarshal(b, &agent); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal agent spec file %q: %w", agentFilePath, err)
 		}
-		
+
 		// Optional: If the internal Name is missing, we could default to entry.Name() here
 		// if agent.Name == "" { agent.Name = entry.Name() }
+
+		if agent.Workflow != nil {
+			for i, m := range agent.Workflow.Modes {
+				useKey := m.Use
+				if useKey == "" {
+					useKey = m.Name
+				}
+				
+				if def, ok := mode.Builtins[useKey]; ok {
+					base := mapDefinitionToMode(def)
+					m.Merge(base)
+					agent.Workflow.Modes[i] = m
+				}
+			}
+		}
 
 		agents = append(agents, agent)
 	}

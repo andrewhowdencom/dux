@@ -9,12 +9,17 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/binary"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/librarian"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/semantic"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/transition"
+	plan "github.com/andrewhowdencom/dux/pkg/llm/tool/workspace"
 	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
 	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
-// NewEngine creates an adapter.Engine using the given parameters and global configuration configurations.
+// NewEngine creates an llm.Engine using the given parameters and configurations.
+// If the agent specifies a Workflow, it natively wraps execution in a WorkflowEngine.
 func NewEngine(
 	ctx context.Context,
 	agentName string,
@@ -22,15 +27,123 @@ func NewEngine(
 	agentsFilePath string,
 	hitl llm.HITLHandler,
 	unsafeAllTools bool,
-) (*adapter.Engine, *config.InstanceConfig, func(), error) {
+) (llm.Engine, *config.InstanceConfig, func(), error) {
+	var allCleanups []func()
+	globalCleanup := func() {
+		for _, c := range allCleanups {
+			c()
+		}
+	}
 
-	var finalProvider = providerID
+	var agt *config.Agent
+	if agentName != "" {
+		agents, err := config.LoadAgents(agentsFilePath)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to load agents file: %w", err)
+		}
+		a, err := config.GetAgent(agents, agentName)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		agt = &a
+	}
+
+	if agt != nil && agt.Workflow != nil {
+		var selectedCfg *config.InstanceConfig
+		memories := make(map[string]llm.Injector)
+
+		// Pre-populate orchestrator memory so it acts as the global reference
+		memories["orchestrator"] = working.NewInMemory()
+
+		factory := func(modeName string) ([]adapter.Option, error) {
+			var targetMode *config.Mode
+			for _, m := range agt.Workflow.Modes {
+				if m.Name == modeName {
+					targetMode = &m
+					break
+				}
+			}
+			if targetMode == nil {
+				return nil, fmt.Errorf("workflow mode not found: %s", modeName)
+			}
+
+			var transitionTools []llm.Tool
+			for _, t := range targetMode.Transitions {
+				transitionTools = append(transitionTools, transition.New(t.To, t.Description))
+			}
+
+			modeMem, ok := memories[modeName]
+			if !ok {
+				modeMem = working.NewInMemory()
+				memories[modeName] = modeMem
+			}
+
+			globalMem := memories["orchestrator"]
+
+			opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, targetMode.Provider, targetMode.Context, hitl, unsafeAllTools, modeMem, globalMem, transitionTools)
+			if err != nil {
+				return nil, err
+			}
+			if cleanup != nil {
+				allCleanups = append(allCleanups, cleanup)
+			}
+			
+			// We always return the configuration of the latest mode evaluated requested by the caller
+			selectedCfg = cfg
+
+			return opts, nil
+		}
+
+		engine, err := adapter.NewWorkflowEngine(agt.Workflow.DefaultMode, factory)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return engine, selectedCfg, globalCleanup, nil
+	}
+
+	// Fallback to single-context core engine
+	mem := working.NewInMemory()
+	var contextCfg *config.AgentContext
+	var fallbackProvider string
+	if agt != nil {
+		contextCfg = agt.Context
+		fallbackProvider = agt.Provider
+	}
+
+	opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, fallbackProvider, contextCfg, hitl, unsafeAllTools, mem, mem, nil)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if cleanup != nil {
+		allCleanups = append(allCleanups, cleanup)
+	}
+
+	return adapter.New(opts...), cfg, globalCleanup, nil
+}
+
+
+func compileOptions(
+	ctx context.Context,
+	agentName string,
+	globalProviderID string,
+	localProviderID string,
+	contextCfg *config.AgentContext,
+	hitl llm.HITLHandler,
+	unsafeAllTools bool,
+	mem llm.Injector,
+	globalMem llm.Injector,
+	transitionTools []llm.Tool,
+) ([]adapter.Option, *config.InstanceConfig, func(), error) {
+	var finalProvider = localProviderID
+	if finalProvider == "" {
+		finalProvider = globalProviderID
+	}
+
 	var sysPrompt string
 	var enrichers []llm.Injector
 	var resolvers []llm.ToolProvider
 
 	globalTools := config.LoadGlobalTools()
-
 	toolMap := make(map[string]config.ToolConfig)
 	requiresSupervision := make(map[string]interface{})
 
@@ -46,35 +159,22 @@ func NewEngine(
 
 	flattenTools(globalTools)
 
-	if agentName != "" {
-		agents, err := config.LoadAgents(agentsFilePath)
+	if contextCfg != nil {
+		sysPrompt = contextCfg.System
+		en, err := NewEnrichersFromConfig(contextCfg.Enrichers)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to load agents file: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to initialize enrichers: %w", err)
 		}
-		agt, err := config.GetAgent(agents, agentName)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		finalProvider = agt.Provider
-		if agt.Context != nil {
-			sysPrompt = agt.Context.System
-			en, err := NewEnrichersFromConfig(agt.Context.Enrichers)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to initialize enrichers for agent %q: %w", agentName, err)
-			}
-			enrichers = en
-
-			flattenTools(agt.Context.Tools)
-		}
+		enrichers = en
+		flattenTools(contextCfg.Tools)
 	}
 
 	var nativeToolNames []string
 	var mcpConfigs []config.ToolConfig
 	var binaryConfigs []config.ToolConfig
-
 	timeouts := make(map[string]time.Duration)
-
 	var semanticToolNames []string
+	var workspacePlansEnabled bool
 
 	for name, t := range toolMap {
 		if !t.Enabled {
@@ -84,7 +184,7 @@ func NewEngine(
 		if t.Requirements.Supervision != nil {
 			requiresSupervision[name] = t.Requirements.Supervision
 		} else {
-			if len(name) >= 9 && name[:9] == "semantic_" {
+			if (len(name) >= 9 && name[:9] == "semantic_") || (len(name) >= 14 && name[:14] == "transition_to_") || name == "read_working_memory" {
 				requiresSupervision[name] = false
 			} else {
 				requiresSupervision[name] = true
@@ -103,6 +203,8 @@ func NewEngine(
 			mcpConfigs = append(mcpConfigs, t)
 		} else if t.Binary != nil {
 			binaryConfigs = append(binaryConfigs, t)
+		} else if name == "workspace_plans" {
+			workspacePlansEnabled = true
 		} else if name == "semantic" || (len(name) >= 9 && name[:9] == "semantic_") {
 			semanticToolNames = append(semanticToolNames, name)
 		} else {
@@ -128,7 +230,6 @@ func NewEngine(
 		return nil, nil, nil, fmt.Errorf("failed to initialize provider %q: %w", selectedCfg.ID, err)
 	}
 
-	// Initialize MCP Tool Resolvers
 	mcpResolvers, cleanup, err := NewMCPResolversFromConfig(ctx, agentName, mcpConfigs)
 	if err != nil {
 		return nil, nil, nil, err
@@ -140,7 +241,7 @@ func NewEngine(
 	}
 
 	if len(semanticToolNames) > 0 {
-		var dbPath = ":memory:" // Default to in-memory for now
+		var dbPath = ":memory:"
 		store, err := sqlite.NewStore(dbPath)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
@@ -149,9 +250,19 @@ func NewEngine(
 		resolvers = append(resolvers, semProvider)
 	}
 
-	mem := working.NewInMemory()
+	if workspacePlansEnabled {
+		resolvers = append(resolvers, plan.NewProvider())
+	}
 
-	// Ensure hitl is provided; we can still wrap with unsafeAllTools flag
+	if globalMem != nil {
+		resolvers = append(resolvers, librarian.NewProvider(globalMem))
+	}
+	
+	// Inject standard transition tools statically
+	if len(transitionTools) > 0 {
+		resolvers = append(resolvers, static.New("transitions", transitionTools...))
+	}
+
 	hitlMiddleware := llm.NewHITLMiddleware(hitl, requiresSupervision, unsafeAllTools)
 	timeoutMiddleware := llm.NewTimeoutMiddleware(timeouts, 5*time.Second)
 
@@ -167,6 +278,5 @@ func NewEngine(
 		opts = append(opts, adapter.WithResolver(r))
 	}
 
-	engine := adapter.New(opts...)
-	return engine, &selectedCfg, cleanup, nil
+	return opts, &selectedCfg, cleanup, nil
 }

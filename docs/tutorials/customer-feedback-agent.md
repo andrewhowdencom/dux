@@ -18,14 +18,18 @@ Create an entry for the feedback agent:
 ### YAML Configuration Example
 
 ```yaml
-- name: "feedback-analyzer"
-  provider: "ollama-local" # Substitute with your configured provider
-  context:
-    system: |
-      You are a Customer Feedback Analyzer.
-      Your job is to read user feedback and output a structured summary.
-      Categorize the feedback into: BUG, FEATURE, or PRAISE.
-      Provide a 1-sentence summary of the core issue.
+name: "feedback-analyzer"
+provider: "ollama-local" # Substitute with your configured provider
+workflow:
+  default_mode: "analyzer"
+  modes:
+    - name: "analyzer"
+      context:
+        system: |
+          You are a Customer Feedback Analyzer.
+          Your job is to read user feedback and output a structured summary.
+          Categorize the feedback into: BUG, FEATURE, or PRAISE.
+          Provide a 1-sentence summary of the core issue.
 ```
 
 ### Go Library Example
