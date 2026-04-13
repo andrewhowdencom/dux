@@ -3,7 +3,11 @@ package ui
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
+
+	"github.com/adrg/xdg"
+	"github.com/spf13/viper"
 
 	"github.com/andrewhowdencom/dux/internal/config"
 	"github.com/andrewhowdencom/dux/pkg/llm"
@@ -23,7 +27,7 @@ func NewEngine(
 	agentsFilePath string,
 	hitl llm.HITLHandler,
 	unsafeAllTools bool,
-) (llm.Engine, *config.InstanceConfig, func(), error) {
+) (llm.Engine, *config.InstanceConfig, working.WorkingMemory, func(), error) {
 	var allCleanups []func()
 	globalCleanup := func() {
 		for _, c := range allCleanups {
@@ -35,11 +39,11 @@ func NewEngine(
 	if agentName != "" {
 		agents, err := config.LoadAgents(agentsFilePath)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to load agents file: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to load agents file: %w", err)
 		}
 		a, err := config.GetAgent(agents, agentName)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		agt = &a
 	}
@@ -48,8 +52,24 @@ func NewEngine(
 		var selectedCfg *config.InstanceConfig
 		memories := make(map[string]llm.Injector)
 
-		// Pre-populate orchestrator memory so it acts as the global reference
-		memories["orchestrator"] = working.NewInMemory()
+		var effectiveHistoryPath string
+		if viper.GetString("memory.type") == "disk" {
+			effectiveHistoryPath = filepath.Join(xdg.DataHome, "dux", "sessions")
+		}
+
+		var primaryMem working.WorkingMemory
+		if effectiveHistoryPath != "" {
+			dbMem, err := working.NewDiskBacked(effectiveHistoryPath)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("failed to load disk-backed memory: %w", err)
+			}
+			memories["orchestrator"] = dbMem
+			primaryMem = dbMem
+		} else {
+			im := working.NewInMemory()
+			memories["orchestrator"] = im
+			primaryMem = im
+		}
 
 		factory := func(modeName string) ([]adapter.Option, error) {
 			var targetMode *config.Mode
@@ -92,13 +112,28 @@ func NewEngine(
 
 		engine, err := adapter.NewWorkflowEngine(agt.Workflow.DefaultMode, factory)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
-		return engine, selectedCfg, globalCleanup, nil
+		return engine, selectedCfg, primaryMem, globalCleanup, nil
 	}
 
 	// Fallback to single-context core engine
-	mem := working.NewInMemory()
+	var effectiveHistoryPath string
+	if viper.GetString("memory.type") == "disk" {
+		effectiveHistoryPath = filepath.Join(xdg.DataHome, "dux", "sessions")
+	}
+
+	var mem working.WorkingMemory
+	if effectiveHistoryPath != "" {
+		dbMem, err := working.NewDiskBacked(effectiveHistoryPath)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to load disk-backed memory: %w", err)
+		}
+		mem = dbMem
+	} else {
+		mem = working.NewInMemory()
+	}
+	
 	var contextCfg *config.AgentContext
 	var fallbackProvider string
 	if agt != nil {
@@ -108,13 +143,13 @@ func NewEngine(
 
 	opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, fallbackProvider, contextCfg, hitl, unsafeAllTools, mem, mem, nil)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if cleanup != nil {
 		allCleanups = append(allCleanups, cleanup)
 	}
 
-	return adapter.New(opts...), cfg, globalCleanup, nil
+	return adapter.New(opts...), cfg, mem, globalCleanup, nil
 }
 
 

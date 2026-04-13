@@ -58,7 +58,8 @@ func NewMux(agentsDir string, agentName string, providerID string) *http.ServeMu
 		providerID: providerID,
 		hitl:       NewWebHITL(),
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
-			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
+			engine, cfg, _, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
+			return engine, cfg, cleanup, err
 		},
 		sessionKey: key,
 		sessions:   make(map[string]*Session),

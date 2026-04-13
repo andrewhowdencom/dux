@@ -87,7 +87,8 @@ func NewServer(cfg Config) (*Server, error) {
 		sessions:     make(map[string]*Session),
 		cfg:          cfg,
 		engineFactory: func(ctx context.Context, agentName, providerID, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error) {
-			return ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
+			engine, cfg, _, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
+			return engine, cfg, cleanup, err
 		},
 	}, nil
 }

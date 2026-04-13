@@ -119,7 +119,7 @@ func waitForHITL(ch chan ToolApprovalRequestMsg) tea.Cmd {
 	}
 }
 
-func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL) *uiModel {
+func newUIModel(ctx context.Context, sessionID string, initialMessages []llm.Message, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL) *uiModel {
 	name := agentName
 	if name == "" {
 		name = "Dux"
@@ -151,10 +151,50 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentN
 
 	// Initialize Spinner
 	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
 
-	return &uiModel{
+	uiMsgs := make([]chatMessage, 0, len(initialMessages))
+	for _, msg := range initialMessages {
+		if msg.Volatility <= llm.VolatilityMedium {
+			continue // System prompts usually shouldn't clutter the UI chat
+		}
+		cm := chatMessage{
+			role:    msg.Identity.Role,
+			name:    msg.Identity.Name,
+			content: msg.Text(),
+		}
+		for _, rawP := range msg.Parts {
+			switch p := rawP.(type) {
+			case llm.ReasoningPart:
+				cm.thinking += string(p)
+			case llm.ToolRequestPart:
+				cm.toolCalls = append(cm.toolCalls, fmt.Sprintf("Tool Call: %s(%v)", p.Name, p.Args))
+			case llm.ToolResultPart:
+				resStr := fmt.Sprintf("%v", p.Result)
+				if len(resStr) > 500 {
+					resStr = resStr[:500] + " ... (truncated)"
+				}
+				if p.IsError {
+					cm.toolCalls = append(cm.toolCalls, fmt.Sprintf("↳ Error (%s): %s", p.Name, resStr))
+				} else {
+					cm.toolCalls = append(cm.toolCalls, fmt.Sprintf("↳ Result (%s): %s", p.Name, strings.ReplaceAll(resStr, "\n", "\\n")))
+				}
+			case llm.TelemetryPart:
+				if cm.telemetry == nil {
+					cm.telemetry = &llm.TelemetryPart{}
+				}
+				cm.telemetry.InputTokens += p.InputTokens
+				cm.telemetry.OutputTokens += p.OutputTokens
+				cm.telemetry.ReasoningTokens += p.ReasoningTokens
+				cm.telemetry.Duration += p.Duration
+			}
+		}
+		uiMsgs = append(uiMsgs, cm)
+	}
+
+	m := &uiModel{
 		ctx:       ctx,
 		engine:    engine,
 		modelName: modelName,
@@ -164,10 +204,16 @@ func newUIModel(ctx context.Context, engine llm.Engine, modelName, theme, agentN
 		viewport:  vp,
 		spinner:   s,
 		renderer:  rend,
-		messages:  []chatMessage{},
-		sessionID: uuid.New().String(),
+		messages:  uiMsgs,
+		sessionID: sessionID,
 		hitl:      hitl,
 	}
+	
+	if len(uiMsgs) > 0 {
+		m.updateViewport()
+	}
+	
+	return m
 }
 
 func (m *uiModel) Init() tea.Cmd {
@@ -444,8 +490,8 @@ func (m *uiModel) View() string {
 }
 
 // StartREPL begins a synchronous interactive loop wrapping the engine stream.
-func StartREPL(ctx context.Context, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer) error {
-	m := newUIModel(ctx, engine, modelName, theme, agentName, hitl)
+func StartREPL(ctx context.Context, sessionID string, initialMessages []llm.Message, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer) error {
+	m := newUIModel(ctx, sessionID, initialMessages, engine, modelName, theme, agentName, hitl)
 	p := tea.NewProgram(
 		m,
 		tea.WithAltScreen(),

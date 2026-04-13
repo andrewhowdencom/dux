@@ -49,7 +49,7 @@ var runCmd = &cobra.Command{
 		bus := trigger.NewInMemoryEventBus()
 
 		hitl := terminal.NewBubbleTeaHITL()
-		engine, selectedCfg, cleanup, err := ui.NewEngine(ctx, agentName, agt.Provider, agentsDir, hitl, unsafeAllTools)
+		engine, selectedCfg, _, cleanup, err := ui.NewEngine(ctx, agentName, agt.Provider, agentsDir, hitl, unsafeAllTools)
 		if err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ var runCmd = &cobra.Command{
 				}
 
 				startFn := func(iCtx context.Context) error {
-					return terminal.StartREPL(iCtx, engine, modelName, theme, agentName, hitl, os.Stdin, os.Stdout)
+					return terminal.StartREPL(iCtx, "", nil, engine, modelName, theme, agentName, hitl, os.Stdin, os.Stdout)
 				}
 				triggers = append(triggers, trigger.NewInteractive(startFn))
 			default:

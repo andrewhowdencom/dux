@@ -34,7 +34,7 @@ var invokeCmd = &cobra.Command{
 		agentName := args[0]
 		
 		hitl := terminal.NewBubbleTeaHITL() // Could be a dummy HITL that always approves or rejects
-		engine, _, cleanup, err := ui.NewEngine(ctx, agentName, "", agentsDir, hitl, unsafeAllTools)
+		engine, _, _, cleanup, err := ui.NewEngine(ctx, agentName, "", agentsDir, hitl, unsafeAllTools)
 		if err != nil {
 			return err
 		}

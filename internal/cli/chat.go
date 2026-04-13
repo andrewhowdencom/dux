@@ -2,12 +2,16 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/google/uuid"
 	"github.com/andrewhowdencom/dux/internal/ui"
+	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,6 +21,7 @@ var providerID string
 var chatTheme string
 var agentName string
 var unsafeAllTools bool
+var historyPath string
 
 var chatCmd = &cobra.Command{
 	Use:   "chat",
@@ -35,11 +40,36 @@ var chatCmd = &cobra.Command{
 		}()
 
 		hitl := terminal.NewBubbleTeaHITL()
-		engine, selectedCfg, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsDir, hitl, unsafeAllTools)
+		engine, selectedCfg, mem, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsDir, hitl, unsafeAllTools)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
+
+		initialSessionID := uuid.New().String()
+		var initialMessages []llm.Message
+
+		if historyPath != "" {
+			data, err := os.ReadFile(historyPath)
+			if err == nil {
+				// We expect an array of llm.Message if created by DiskBacked Dir store
+				var msgs []llm.Message
+				if err := json.Unmarshal(data, &msgs); err == nil {
+					initialMessages = msgs
+				}
+				
+				for _, msg := range initialMessages {
+					_ = mem.Append(ctx, initialSessionID, msg)
+				}
+			}
+		} else if db, ok := mem.(*working.DiskBacked); ok {
+			sessions := db.Sessions()
+			for sid, msgs := range sessions {
+				initialSessionID = sid
+				initialMessages = append(initialMessages, msgs...)
+				break // Naively pick the first one since it's a 1:1 file usually
+			}
+		}
 
 		var modelName string
 		if m, ok := selectedCfg.Config["model"].(string); ok {
@@ -55,7 +85,7 @@ var chatCmd = &cobra.Command{
 			theme = "dark"
 		}
 
-		_ = terminal.StartREPL(ctx, engine, modelName, theme, agentName, hitl, os.Stdin, os.Stdout)
+		_ = terminal.StartREPL(ctx, initialSessionID, initialMessages, engine, modelName, theme, agentName, hitl, os.Stdin, os.Stdout)
 
 		fmt.Println("\nChat session ended.")
 		return nil
@@ -69,5 +99,6 @@ func init() {
 	chatCmd.Flags().StringVar(&chatTheme, "theme", "dark", "Theme for chat rendering. Supported: ascii, dark, dracula, light, notty, pink, tokyo-night, or path/to/style.json")
 	_ = viper.BindPFlag("chat.theme", chatCmd.Flags().Lookup("theme"))
 	chatCmd.Flags().BoolVar(&unsafeAllTools, "unsafe-all-tools", false, "Disable hitl prompts unconditionally for all tools")
+	chatCmd.Flags().StringVar(&historyPath, "history", "", "Path to a JSON file to load and save session memory")
 	RootCmd.AddCommand(chatCmd)
 }
