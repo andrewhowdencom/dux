@@ -13,7 +13,6 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/semantic"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/transition"
-	plan "github.com/andrewhowdencom/dux/pkg/llm/tool/workspace"
 	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
 	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
@@ -174,7 +173,6 @@ func compileOptions(
 	var binaryConfigs []config.ToolConfig
 	timeouts := make(map[string]time.Duration)
 	var semanticToolNames []string
-	var workspacePlansEnabled bool
 
 	for name, t := range toolMap {
 		if !t.Enabled {
@@ -203,8 +201,6 @@ func compileOptions(
 			mcpConfigs = append(mcpConfigs, t)
 		} else if t.Binary != nil {
 			binaryConfigs = append(binaryConfigs, t)
-		} else if name == "workspace_plans" {
-			workspacePlansEnabled = true
 		} else if name == "semantic" || (len(name) >= 9 && name[:9] == "semantic_") {
 			semanticToolNames = append(semanticToolNames, name)
 		} else {
@@ -248,10 +244,6 @@ func compileOptions(
 		}
 		semProvider := semantic.NewProvider(store)
 		resolvers = append(resolvers, semProvider)
-	}
-
-	if workspacePlansEnabled {
-		resolvers = append(resolvers, plan.NewProvider())
 	}
 
 	if globalMem != nil {

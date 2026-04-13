@@ -18,5 +18,7 @@ When writing code, ensure you run tests or linters appropriately. Stop and yield
 	Tools: []ToolSpec{
 		{Name: "workspace_plans"},
 		{Name: "librarian"},
+		{Name: "filesystem", Supervision: true},
+		{Name: "bash", Supervision: true},
 	},
 }

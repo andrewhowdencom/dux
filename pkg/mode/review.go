@@ -12,5 +12,7 @@ Provide a strictly structured list of PASS or FAIL criteria. Do not attempt to f
 	},
 	Tools: []ToolSpec{
 		{Name: "librarian"},
+		{Name: "workspace_plans", Supervision: "tool_name == 'plan_create' || tool_name == 'plan_update'"},
+		{Name: "filesystem", Supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"},
 	},
 }

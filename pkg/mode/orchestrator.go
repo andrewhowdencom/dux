@@ -11,6 +11,7 @@ You MUST provide a clear, explicitly "lensed" context payload in the 'message' a
 
 When sub-agents complete their tasks, they will return control to you with a summary of their work. You should synthesize their results and either delegate the next step or reply directly to the user.`,
 	Transitions: []Transition{
+		{Target: "conversation", Description: "Delegate to a conversational assistant for clarifying questions, casual interactions, or simple Q&A that does not require planning or code execution."},
 		{Target: "planning", Description: "Delegate task breakdown and high-level architectural planning. Use when a complex task needs to be analyzed before coding."},
 		{Target: "execution", Description: "Delegate concrete tasks, code writing, and terminal commands. Use when explicit instructions or plans already exist."},
 		{Target: "review", Description: "Delegate quality assurance and code review formatting."},

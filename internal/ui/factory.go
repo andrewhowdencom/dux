@@ -17,6 +17,7 @@ import (
 	filetool "github.com/andrewhowdencom/dux/pkg/llm/tool/file"
 	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	stdlibtool "github.com/andrewhowdencom/dux/pkg/llm/tool/stdlib"
+	workspacetool "github.com/andrewhowdencom/dux/pkg/llm/tool/workspace"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -132,6 +133,11 @@ func NewResolversFromConfig(cfgs []string) ([]llm.ToolProvider, error) {
 			results = append(results, static_resolver.New("filesystem", filetool.NewRead(), filetool.NewWrite(), filetool.NewPatch(), filetool.NewList()))
 		case "bash":
 			results = append(results, static_resolver.New("bash", bashtool.New()))
+		case "workspace_plans":
+			results = append(results, static_resolver.New("workspace_plans",
+				&workspacetool.PlanCreateTool{}, &workspacetool.PlanReadTool{},
+				&workspacetool.PlanUpdateTool{}, &workspacetool.PlanListTool{},
+			))
 		default:
 			return nil, fmt.Errorf("unknown tool bundle/name: %s", c)
 		}
