@@ -14,5 +14,5 @@ Do not rely on conversation history to pass your plan forward. The execution age
 	Transitions: []Transition{
 		{Target: "orchestrator", Description: "Yield control back to the orchestrator. You MUST provide a comprehensive, Markdown-formatted summary of the work you completed, any open issues, exact paths of files you created or modified, and test results in the message argument. Do not transition without a complete handoff report."},
 	},
-	Tools: []string{"workspace_plans"},
+	Tools: []string{"workspace_plans", "librarian"},
 }
