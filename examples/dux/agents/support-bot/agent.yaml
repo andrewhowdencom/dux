@@ -8,20 +8,10 @@ workflow:
       use: "orchestrator"
       context:
         system: |
-          You are the lead Support Orchestrator. 
-          Gather context from the user and triage their issue, delegating tasks to specialize sub-agents.
-        tools:
-          - name: "stdlib"
-            enabled: true
-      transitions:
-        - to: "architect"
-          description: "Delegate to the planning architect to design a codebase fix."
-        - to: "builder"
-          description: "Delegate to the builder to write code based on the architect's plan."
-        - to: "reviewer"
-          description: "Delegate code verification to the QA reviewer."
+          You are a Tier 3 Support Orchestrator. 
+          Gather context from the user and triage their issue, delegating tasks to specialized sub-agents natively.
 
-    - name: "architect"
+    - name: "planning"
       use: "planning"
       context:
         tools:
@@ -34,7 +24,7 @@ workflow:
             requirements:
               supervision: "tool_name == 'file_write' || tool_name == 'file_patch'"
 
-    - name: "builder"
+    - name: "execution"
       use: "execution"
       provider: "claude-3-opus" # Override with a highly capable model for complex coding
       context:
@@ -48,7 +38,7 @@ workflow:
             requirements:
               supervision: false # Autonomous execution
 
-    - name: "reviewer"
+    - name: "review"
       use: "review"
       context:
         tools:
