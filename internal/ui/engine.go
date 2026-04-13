@@ -96,7 +96,12 @@ func NewEngine(
 
 			globalMem := memories["orchestrator"]
 
-			opts, cfg, cleanup, err := compileOptions(ctx, agentName, providerID, targetMode.Provider, targetMode.Context, hitl, unsafeAllTools, modeMem, globalMem, transitionTools)
+			effectiveGlobalProvider := providerID
+			if effectiveGlobalProvider == "" && agt != nil {
+				effectiveGlobalProvider = agt.Provider
+			}
+
+			opts, cfg, cleanup, err := compileOptions(ctx, agentName, effectiveGlobalProvider, targetMode.Provider, targetMode.Context, hitl, unsafeAllTools, modeMem, globalMem, transitionTools)
 			if err != nil {
 				return nil, err
 			}
