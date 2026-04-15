@@ -26,7 +26,7 @@ Dux is a lightning-fast, highly modular execution engine for running and testing
 
 Explore the documentation through its Diátaxis structure:
 
-- 🎓 **[Tutorials](tutorials/litellm.md)**: Explore step-by-step example agents and generic integrations.
+- 🎓 **[Tutorials](tutorials/openai-compatible.md)**: Explore step-by-step example agents and generic integrations.
 - 🚀 **[How-To Guides](how-to/running-locally.md)**: Target guides for local configuration, agent definitions, and building.
 - 📖 **[Reference](reference/cli.md)**: API specifications and CLI Commands.
 - 🧠 **[Explanation](explanation/architecture.md)**: Deep dives into the LLM "convergence loop" theory and architecture abstractions.
