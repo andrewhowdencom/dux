@@ -35,7 +35,7 @@ mkdir -p ~/.config/dux/
 cp config.example.yaml ~/.config/dux/config.yaml
 ```
 
-You can view the specific [LiteLLM Integration Tutorial](../tutorials/litellm.md) to understand mapping OpenAI proxy configurations, or simply leave the `ollama-local` fallback if you have the Ollama daemon running.
+You can view the specific [OpenAI-Compatible Providers Tutorial](../tutorials/openai-compatible.md) to understand mapping OpenAI proxy configurations, or simply leave the `ollama-local` fallback if you have the Ollama daemon running.
 
 ## Running the Application
 

@@ -27,11 +27,17 @@ tasks:
     cmds:
       - go test -race ./...
 
+  docs-validate:
+    desc: Validates documentation builds with strict mode (catches broken links, orphan pages, etc).
+    cmds:
+      - mkdocs build --strict
+
   validate:
-    desc: Runs lints, unit tests, smoke tests, and the build. Run this before committing.
+    desc: Runs lints, unit tests, smoke tests, docs validation, and the build. Run this before committing.
     cmds:
       - task: lint
       - task: test
+      - task: docs-validate
       - task: build
 
   docs-serve:

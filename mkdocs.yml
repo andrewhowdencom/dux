@@ -29,24 +29,33 @@ docs_dir: docs
 nav:
   - Home: index.md
   - Tutorials:
-    - "Integrating LiteLLM": tutorials/litellm.md
+    - "Getting Started": tutorials/getting-started.md
+    - "OpenAI-Compatible Providers": tutorials/openai-compatible.md
+    - "Declarative Tools": tutorials/declarative-tools.md
     - "Customer Feedback Agent": tutorials/customer-feedback-agent.md
     - "Customer Support Agent": tutorials/customer-support-agent.md
     - "Migration Agent": tutorials/migration-agent.md
     - "Guild Management Agent": tutorials/guild-management-agent.md
     - "Product Marketing Agent": tutorials/product-marketing-agent.md
-    - "Q&A Bot Agent": tutorials/qa-bot-agent.md
+    - "Coding Agent": tutorials/coder-agent.md
     - "Helpful Assistant (Clippy)": tutorials/clippy-agent.md
   - How-To Guides:
     - "Running Locally": how-to/running-locally.md
+    - "Running in Container": how-to/running-in-container.md
     - "Configuring Agents": how-to/configuring-agents.md
+    - "Configuring Gemini": how-to/configuring-gemini.md
     - "Configuring MCP Servers": how-to/configuring-mcp.md
     - "Configuring Slack UI": how-to/slack-ui.md
+    - "Custom Tools": how-to/custom-tools.md
+    - "Group Tools": how-to/group-tools.md
     - "Using as Go Library": how-to/using-as-library.md
   - Reference:
     - "CLI Commands": reference/cli.md
+    - "LLM Providers": reference/llm-providers.md
+    - "Tools": reference/tools.md
   - Explanation:
     - "Application Architecture": explanation/architecture.md
+    - "Declarative Execution": explanation/declarative-execution.md
 
 markdown_extensions:
   - pymdownx.highlight:
