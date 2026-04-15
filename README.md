@@ -25,12 +25,26 @@ go build
 # Set up your environment (Targeting your local Ollama)
 cp config.example.yaml ~/.config/dux/config.yaml
 
-# Start a multi-modal Agent
-./dux run qa
+# Start an interactive chat session
+./dux chat --agent my-agent
 
-# Or execute a one-shot query
-echo "What time is it?" | ./dux invoke qa
+# Run an agent with its configured triggers (schedules, events, chat)
+./dux run my-agent
+
+# Execute a one-shot query via stdin
+echo "What time is it?" | ./dux invoke my-agent
+
+# Start UI servers (web, telegram, slack) defined in config
+./dux serve
 ```
+
+## Available Commands
+
+- `dux chat` - Interactive REPL chat session with an agent
+- `dux run [agent]` - Run an agent with all its configured triggers
+- `dux invoke [agent]` - Execute a single query via stdin
+- `dux serve [type]` - Start UI servers (web/telegram/slack)
+- `dux llm` - Manage LLM provider configurations
 
 ## Documentation
 
