@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/ui"
 	"github.com/slack-go/slack"
 )
 
@@ -23,15 +24,28 @@ type StreamTracker struct {
 	pendingUpdate   bool
 	updateThrottler *time.Ticker
 
-	OnReset func()
+	OnReset       func()
+	toolFormatter ui.ToolFormatter
 }
 
-func NewStreamTracker(api *slack.Client, channelID, threadTS, agentName string) *StreamTracker {
-	return &StreamTracker{
+func NewStreamTracker(api *slack.Client, channelID, threadTS, agentName string, opts ...StreamTrackerOption) *StreamTracker {
+	st := &StreamTracker{
 		api:       api,
 		channelID: channelID,
 		threadTS:  threadTS,
 		agentName: agentName,
+	}
+	for _, opt := range opts {
+		opt(st)
+	}
+	return st
+}
+
+type StreamTrackerOption func(*StreamTracker)
+
+func WithToolFormatter(formatter ui.ToolFormatter) StreamTrackerOption {
+	return func(st *StreamTracker) {
+		st.toolFormatter = formatter
 	}
 }
 
@@ -87,6 +101,45 @@ func (st *StreamTracker) RenderTextChunk(chunk string) {
 func (st *StreamTracker) RenderError(err error) {
 	st.mu.Lock()
 	st.text += fmt.Sprintf("\n\n❌ Error: %v", err)
+	st.pendingUpdate = true
+	st.mu.Unlock()
+}
+
+func (st *StreamTracker) RenderToolIntent(toolName string, args any) {
+	st.Flush()
+
+	st.mu.Lock()
+	if st.toolFormatter != nil {
+		argsMap, _ := args.(map[string]interface{})
+		formatted := st.toolFormatter.FormatToolCall(toolName, argsMap)
+		st.text += fmt.Sprintf("\n\n*%s*", formatted)
+	} else {
+		st.text += fmt.Sprintf("\n\n*Tool: %s*\n```%v```\n_Status: Executing..._",
+			toolName, args)
+	}
+	st.pendingUpdate = true
+	st.mu.Unlock()
+}
+
+func (st *StreamTracker) RenderToolResult(toolName string, result any, isError bool) {
+	st.Flush()
+
+	st.mu.Lock()
+	if st.toolFormatter != nil {
+		formatted := st.toolFormatter.FormatToolResult(toolName, result, isError)
+		st.text += fmt.Sprintf("\n\n*%s*", formatted)
+	} else {
+		status := ":white_check_mark: Success"
+		if isError {
+			status = ":x: Error"
+		}
+		resStr := fmt.Sprintf("%v", result)
+		if len(resStr) > 200 {
+			resStr = resStr[:200] + "..."
+		}
+		st.text += fmt.Sprintf("\n\n*Result: %s*\n```%s```\n_Status: %s_",
+			toolName, resStr, status)
+	}
 	st.pendingUpdate = true
 	st.mu.Unlock()
 }

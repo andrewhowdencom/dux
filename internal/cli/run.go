@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/andrewhowdencom/dux/internal/config"
-	"github.com/andrewhowdencom/dux/internal/ui"
+	internalui "github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
 	"github.com/andrewhowdencom/dux/pkg/trigger"
@@ -49,7 +49,7 @@ var runCmd = &cobra.Command{
 		bus := trigger.NewInMemoryEventBus()
 
 		hitl := terminal.NewBubbleTeaHITL()
-		engine, selectedCfg, _, cleanup, err := ui.NewEngine(ctx, agentName, agt.Provider, agentsDir, hitl, unsafeAllTools)
+		engine, selectedCfg, _, cleanup, err := internalui.NewEngine(ctx, agentName, agt.Provider, agentsDir, hitl, unsafeAllTools)
 		if err != nil {
 			return err
 		}
@@ -108,7 +108,21 @@ var runCmd = &cobra.Command{
 				}
 
 				startFn := func(iCtx context.Context) error {
-					return terminal.StartREPL(iCtx, "", nil, engine, modelName, theme, agentName, hitl, os.Stdin, os.Stdout)
+					toolConfigs, defaultIcon := makeToolConfigs()
+
+					return terminal.StartREPL(
+						iCtx,
+						"",
+						nil,
+						engine,
+						modelName,
+						theme,
+						agentName,
+						hitl,
+						os.Stdin,
+						os.Stdout,
+						terminal.WithToolDisplayConfig(toolConfigs, defaultIcon),
+					)
 				}
 				triggers = append(triggers, trigger.NewInteractive(startFn))
 			default:

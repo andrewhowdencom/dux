@@ -60,6 +60,10 @@ func TestHandleChat_StreamingNDJSON(t *testing.T) {
 		engineFactory: factory,
 		sessionKey:    key,
 		sessions:      make(map[string]*Session),
+		toolDisplayCfg: config.ToolDisplayConfig{
+			Enabled:     true,
+			DefaultIcon: "🔧",
+		},
 	}
 
 	payload := map[string]string{
@@ -81,8 +85,8 @@ func TestHandleChat_StreamingNDJSON(t *testing.T) {
 	}
 
 	lines := strings.Split(strings.TrimSpace(rec.Body.String()), "\n")
-	if len(lines) != 3 {
-		t.Fatalf("Expected 3 stream lines, got %d", len(lines))
+	if len(lines) != 4 {
+		t.Fatalf("Expected 4 stream lines (2 text + 1 tool_call + 1 hitl_request), got %d", len(lines))
 	}
 
 	// Verify line 1
@@ -94,13 +98,31 @@ func TestHandleChat_StreamingNDJSON(t *testing.T) {
 		t.Errorf("Line 1 mismatch: %v", out1)
 	}
 
-	// Verify line 3
+	// Verify line 2
+	var out2 map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[1]), &out2); err != nil {
+		t.Fatalf("json unmarshal failed: %v", err)
+	}
+	if out2["type"] != "text" || out2["content"] != " World" {
+		t.Errorf("Line 2 mismatch: %v", out2)
+	}
+
+	// Verify line 3 (tool_call)
 	var out3 map[string]interface{}
 	if err := json.Unmarshal([]byte(lines[2]), &out3); err != nil {
 		t.Fatalf("json unmarshal failed: %v", err)
 	}
-	if out3["type"] != "hitl_request" || out3["call_id"] != "123" || out3["tool"] != "test_tool" {
+	if out3["type"] != "tool_call" || out3["tool"] != "test_tool" {
 		t.Errorf("Line 3 mismatch: %v", out3)
+	}
+
+	// Verify line 4
+	var out4 map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[3]), &out4); err != nil {
+		t.Fatalf("json unmarshal failed: %v", err)
+	}
+	if out4["type"] != "hitl_request" || out4["call_id"] != "123" || out4["tool"] != "test_tool" {
+		t.Errorf("Line 4 mismatch: %v", out4)
 	}
 }
 

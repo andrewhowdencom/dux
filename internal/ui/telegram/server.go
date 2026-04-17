@@ -35,11 +35,11 @@ type Server struct {
 	whitelist map[int64]bool
 	agentsDir string
 
-	sessionsMutex sync.RWMutex
-	sessions      map[int64]*Session
-
-	engineFactory EngineFactory
-	cfg           Config
+	sessionsMutex  sync.RWMutex
+	sessions       map[int64]*Session
+	engineFactory  EngineFactory
+	cfg            Config
+	toolDisplayCfg config.ToolDisplayConfig
 }
 
 type Config struct {
@@ -73,7 +73,8 @@ func NewServer(cfg Config) (*Server, error) {
 			engine, cfg, _, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 			return engine, cfg, cleanup, err
 		},
-		cfg: cfg,
+		cfg:            cfg,
+		toolDisplayCfg: config.LoadToolDisplayConfig(),
 	}, nil
 }
 
@@ -233,7 +234,18 @@ func (s *Server) handleMessage(sess *Session, msg *tgbotapi.Message) {
 		sess.CleanupOpts = append(sess.CleanupOpts, cleanup)
 	}
 
-	st := NewStreamTracker(s.bot, sess.ChatID)
+	toolConfigs := make(map[string]pkgui.ToolDisplayConfig)
+	for name, cfg := range s.toolDisplayCfg.Tools {
+		toolConfigs[name] = pkgui.ToolDisplayConfig{
+			Icon:         cfg.Icon,
+			HideArgs:     cfg.HideArgs,
+			HideResult:   cfg.HideResult,
+			MaxResultLen: cfg.MaxResultLen,
+		}
+	}
+	formatter := pkgui.NewDefaultToolFormatter(toolConfigs, s.toolDisplayCfg.DefaultIcon)
+
+	st := NewStreamTracker(s.bot, sess.ChatID, WithToolFormatter(formatter))
 	st.OnReset = func() {
 		s.sessionsMutex.Lock()
 		delete(s.sessions, sess.ChatID)

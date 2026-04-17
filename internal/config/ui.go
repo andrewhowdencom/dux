@@ -84,10 +84,34 @@ func (c *UIConfig) ParseSlackConfig() (*SlackUIConfig, error) {
 	return &cfg, nil
 }
 
+type ToolDisplayConfig struct {
+	Enabled     bool                             `mapstructure:"enabled"`
+	DefaultIcon string                           `mapstructure:"default_icon"`
+	Tools       map[string]ToolDisplayToolConfig `mapstructure:"tools"`
+}
+
+type ToolDisplayToolConfig struct {
+	Icon         string `mapstructure:"icon"`
+	HideArgs     bool   `mapstructure:"hide_args"`
+	HideResult   bool   `mapstructure:"hide_result"`
+	MaxResultLen int    `mapstructure:"max_result_length"`
+}
+
 func LoadUIs() ([]UIConfig, error) {
 	var uis []UIConfig
 	if err := viper.UnmarshalKey("ui", &uis); err != nil {
 		return nil, err
 	}
 	return uis, nil
+}
+
+func LoadToolDisplayConfig() ToolDisplayConfig {
+	var cfg ToolDisplayConfig
+	if err := viper.UnmarshalKey("tool_display", &cfg); err != nil {
+		return ToolDisplayConfig{Enabled: true}
+	}
+	if cfg.DefaultIcon == "" {
+		cfg.DefaultIcon = "🔧"
+	}
+	return cfg
 }

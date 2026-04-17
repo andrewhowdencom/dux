@@ -90,14 +90,19 @@ async function resolveHitl(callId, approve, hitlElement) {
 function createHitlBlock(contentEl, data) {
     const block = document.createElement('div');
     block.className = 'hitl-block';
+    block.dataset.callId = data.call_id;
     
     const header = document.createElement('div');
     header.className = 'hitl-header';
-    header.innerHTML = `⚠️ Approval Required: ${data.tool}`;
+    const icon = data.icon || '🔧';
+    header.innerHTML = `${icon} <strong>Approval Required:</strong> ${data.tool}`;
     
-    const body = document.createElement('div');
-    body.className = 'hitl-body';
-    body.textContent = JSON.stringify(data.args, null, 2);
+    if (data.show_args !== false && data.args) {
+        const body = document.createElement('div');
+        body.className = 'hitl-body';
+        body.textContent = JSON.stringify(data.args, null, 2);
+        block.appendChild(body);
+    }
     
     const actions = document.createElement('div');
     actions.className = 'hitl-actions';
@@ -116,8 +121,33 @@ function createHitlBlock(contentEl, data) {
     actions.appendChild(allowBtn);
     
     block.appendChild(header);
-    block.appendChild(body);
     block.appendChild(actions);
+    
+    contentEl.appendChild(block);
+    elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+}
+
+function createToolCallBlock(contentEl, data) {
+    const block = document.createElement('div');
+    block.className = 'tool-call-block';
+    block.dataset.tool = data.tool;
+    
+    const header = document.createElement('div');
+    header.className = 'tool-call-header';
+    const icon = data.icon || '🔧';
+    header.innerHTML = `${icon} <strong>Tool:</strong> ${data.tool}`;
+    
+    if (data.show_args !== false && data.args) {
+        const body = document.createElement('div');
+        body.className = 'tool-call-body';
+        body.textContent = JSON.stringify(data.args, null, 2);
+        block.appendChild(body);
+    }
+    
+    const status = document.createElement('div');
+    status.className = 'tool-call-status';
+    status.innerHTML = '⏳ <em>Executing...</em>';
+    block.appendChild(status);
     
     contentEl.appendChild(block);
     elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
@@ -129,25 +159,28 @@ function createToolResultBlock(contentEl, data) {
     
     const header = document.createElement('div');
     header.className = 'tool-result-header';
-    header.innerHTML = `⚙️ Tool Result: ${data.tool}`;
+    const icon = data.icon || '🔧';
+    const statusIcon = data.is_error ? '❌' : '✅';
+    header.innerHTML = `${icon} <strong>Result:</strong> ${data.tool} ${statusIcon}`;
     
-    const body = document.createElement('div');
-    body.className = 'tool-result-body';
-    
-    let resText = data.result;
-    if (resText.length > 500) {
-        resText = resText.substring(0, 500) + ' ... (truncated)';
+    if (data.show_result !== false && data.result) {
+        const body = document.createElement('div');
+        body.className = 'tool-result-body';
+        
+        let resText = data.result;
+        if (resText.length > 500) {
+            resText = resText.substring(0, 500) + ' ... (truncated)';
+        }
+        
+        if (data.is_error) {
+            body.style.color = 'var(--danger)';
+            resText = "Error: " + resText;
+        }
+        
+        body.textContent = resText;
+        block.appendChild(body);
     }
     
-    if (data.is_error) {
-        body.style.color = 'var(--danger)';
-        resText = "Error: " + resText;
-    }
-    
-    body.textContent = resText;
-    
-    block.appendChild(header);
-    block.appendChild(body);
     contentEl.appendChild(block);
     elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
 }
@@ -175,6 +208,7 @@ async function generateResponse(prompt) {
     const assistantContent = createMessageBubble('assistant');
     let currentTextEl = null;
     let currentFullText = '';
+    let currentThinkingEl = null;
 
     function getTextEl() {
         if (!currentTextEl) {
@@ -183,6 +217,16 @@ async function generateResponse(prompt) {
             currentFullText = '';
         }
         return currentTextEl;
+    }
+
+    function getThinkingEl() {
+        if (!currentThinkingEl) {
+            currentThinkingEl = document.createElement('div');
+            currentThinkingEl.className = 'thinking-text';
+            currentThinkingEl.textContent = 'Thinking... ';
+            assistantContent.appendChild(currentThinkingEl);
+        }
+        return currentThinkingEl;
     }
     
     try {
@@ -217,13 +261,29 @@ async function generateResponse(prompt) {
                         currentFullText += data.content;
                         getTextEl().innerHTML = md.render(currentFullText);
                     } else if (data.type === 'thinking') {
-                        thinkingEl.textContent += data.content;
+                        getThinkingEl().textContent += data.content;
                     } else if (data.type === 'hitl_request') {
                         createHitlBlock(assistantContent, data);
-                        currentTextEl = null; // Force new text block next time
+                        currentTextEl = null;
+                    } else if (data.type === 'tool_call') {
+                        if (currentThinkingEl) {
+                            currentThinkingEl.style.display = 'none';
+                        }
+                        createToolCallBlock(assistantContent, data);
+                        currentTextEl = null;
                     } else if (data.type === 'tool_result') {
+                        const toolBlocks = assistantContent.querySelectorAll('.tool-call-block');
+                        toolBlocks.forEach(block => {
+                            if (block.dataset.tool === data.tool && !block.classList.contains('completed')) {
+                                block.classList.add('completed');
+                                const statusEl = block.querySelector('.tool-call-status');
+                                if (statusEl) {
+                                    statusEl.innerHTML = data.is_error ? '❌ <em>Failed</em>' : '✅ <em>Completed</em>';
+                                }
+                            }
+                        });
                         createToolResultBlock(assistantContent, data);
-                        currentTextEl = null; // Force new text block next time
+                        currentTextEl = null;
                     } else if (data.type === 'telemetry') {
                         createTelemetryFooter(assistantContent, data);
                     } else if (data.type === 'error') {
