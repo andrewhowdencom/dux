@@ -218,7 +218,7 @@ func compileOptions(
 		if t.Requirements.Supervision != nil {
 			requiresSupervision[name] = t.Requirements.Supervision
 		} else {
-			if strings.HasPrefix(name, "semantic_") || strings.HasPrefix(name, "switch_to_") || strings.HasPrefix(name, "delegate_") || strings.HasPrefix(name, "handover_") || strings.HasPrefix(name, "transition_") || name == "read_working_memory" {
+			if strings.HasPrefix(name, "semantic_") || strings.HasPrefix(name, "switch_to_") || strings.HasPrefix(name, "delegate_") || strings.HasPrefix(name, "handover_") || strings.HasPrefix(name, "transition_") || strings.HasPrefix(name, "plan_") || name == "read_working_memory" || name == "librarian" {
 				requiresSupervision[name] = false
 			} else {
 				requiresSupervision[name] = true
