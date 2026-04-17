@@ -28,6 +28,9 @@ jobs:
       - name: Setup environment
         run: task setup
 
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
       - name: Generate code
         run: task generate
 

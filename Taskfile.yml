@@ -6,6 +6,7 @@ tasks:
     cmds:
       - go mod download
       - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - pip install -r requirements.txt
 
   generate:
     desc: Generates code as required (e.g., from Protocol Buffers, mocks).
@@ -20,7 +21,7 @@ tasks:
   lint:
     desc: Runs code linters.
     cmds:
-      - golangci-lint run
+      - golangci-lint run --timeout=5m
 
   test:
     desc: Runs unit tests.
