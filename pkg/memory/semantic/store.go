@@ -22,6 +22,11 @@ type Store interface {
 	DeleteFact(ctx context.Context, id string) error
 	DeleteByEntityAttribute(ctx context.Context, entity, attribute string) error
 
+	WriteRelationship(ctx context.Context, rel Relationship) error
+	ReadRelationships(ctx context.Context, subject string) ([]Relationship, error)
+	DeleteRelationship(ctx context.Context, id string) error
+	TraverseGraph(ctx context.Context, query GraphQuery) (GraphResult, error)
+
 	Close() error
 }
 

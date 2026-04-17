@@ -151,3 +151,67 @@ func (s *Service) Search(ctx context.Context, query SearchQuery) ([]Fact, error)
 func (s *Service) DeleteFact(ctx context.Context, id string) error {
 	return s.store.DeleteFact(ctx, id)
 }
+
+func (s *Service) CreateRelationship(ctx context.Context, subject, predicate, object string) error {
+	ctx, span := s.tracer.Start(ctx, "semantic.CreateRelationship",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("relationship.subject", subject),
+		attribute.String("relationship.predicate", predicate),
+		attribute.String("relationship.object", object),
+	)
+
+	id := fmt.Sprintf("rel_%s_%s_%s_%d", subject, predicate, object, time.Now().UnixNano())
+	rel := Relationship{
+		ID:        id,
+		Subject:   subject,
+		Predicate: predicate,
+		Object:    object,
+		Metadata: RelationshipMetadata{
+			CreatedAt: time.Now(),
+		},
+	}
+
+	err := s.store.WriteRelationship(ctx, rel)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("failed to create relationship: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Service) FindRelatedFacts(ctx context.Context, entity string, depth int) (GraphResult, error) {
+	return s.FindRelatedFactsWithPredicates(ctx, entity, depth, nil)
+}
+
+func (s *Service) FindRelatedFactsWithPredicates(ctx context.Context, entity string, depth int, predicates []string) (GraphResult, error) {
+	ctx, span := s.tracer.Start(ctx, "semantic.FindRelatedFacts",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("graph.entity", entity),
+		attribute.Int("graph.depth", depth),
+	)
+
+	query := GraphQuery{
+		StartEntity: entity,
+		MaxDepth:    depth,
+		Predicates:  predicates,
+	}
+
+	result, err := s.store.TraverseGraph(ctx, query)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return GraphResult{}, fmt.Errorf("failed to traverse graph: %w", err)
+	}
+
+	return result, nil
+}

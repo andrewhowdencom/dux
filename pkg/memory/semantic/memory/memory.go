@@ -11,13 +11,15 @@ import (
 )
 
 type Store struct {
-	mu    sync.RWMutex
-	facts map[string]semantic.Fact
+	mu            sync.RWMutex
+	facts         map[string]semantic.Fact
+	relationships map[string][]semantic.Relationship
 }
 
 func NewStore() *Store {
 	return &Store{
-		facts: make(map[string]semantic.Fact),
+		facts:         make(map[string]semantic.Fact),
+		relationships: make(map[string][]semantic.Relationship),
 	}
 }
 
@@ -142,7 +144,135 @@ func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.facts = make(map[string]semantic.Fact)
+	s.relationships = make(map[string][]semantic.Relationship)
 	return nil
+}
+
+func (s *Store) WriteRelationship(ctx context.Context, rel semantic.Relationship) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.relationships[rel.Subject] = append(s.relationships[rel.Subject], rel)
+	return nil
+}
+
+func (s *Store) ReadRelationships(ctx context.Context, subject string) ([]semantic.Relationship, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rels, ok := s.relationships[subject]
+	if !ok {
+		return []semantic.Relationship{}, nil
+	}
+	return rels, nil
+}
+
+func (s *Store) DeleteRelationship(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for subject, rels := range s.relationships {
+		for i, rel := range rels {
+			if rel.ID == id {
+				s.relationships[subject] = append(rels[:i], rels[i+1:]...)
+				return nil
+			}
+		}
+	}
+	return semantic.ErrNotFound
+}
+
+func (s *Store) TraverseGraph(ctx context.Context, query semantic.GraphQuery) (semantic.GraphResult, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := semantic.GraphResult{
+		Nodes: []semantic.GraphNode{},
+		Edges: []semantic.GraphEdge{},
+	}
+
+	visited := make(map[string]bool)
+	queue := []string{query.StartEntity}
+	depth := 0
+	maxDepth := query.MaxDepth
+	if maxDepth <= 0 {
+		maxDepth = 3
+	}
+	maxResults := query.MaxResults
+	if maxResults <= 0 {
+		maxResults = 50
+	}
+
+	predicateFilter := len(query.Predicates) > 0
+
+	for len(queue) > 0 && depth < maxDepth && len(result.Nodes) < maxResults {
+		nextLevel := []string{}
+
+		for _, entity := range queue {
+			if visited[entity] {
+				continue
+			}
+			visited[entity] = true
+
+			facts := s.searchFactsByEntity(entity)
+			if len(facts) > 0 {
+				result.Nodes = append(result.Nodes, semantic.GraphNode{
+					Entity: entity,
+					Facts:  facts,
+				})
+			}
+
+			rels := s.getRelationshipsBySubject(entity)
+			for _, rel := range rels {
+				if predicateFilter && !contains(query.Predicates, rel.Predicate) {
+					continue
+				}
+
+				result.Edges = append(result.Edges, semantic.GraphEdge{
+					Subject:   rel.Subject,
+					Predicate: rel.Predicate,
+					Object:    rel.Object,
+				})
+
+				if !visited[rel.Object] {
+					nextLevel = append(nextLevel, rel.Object)
+				}
+			}
+		}
+
+		queue = nextLevel
+		depth++
+	}
+
+	if len(result.Nodes) > maxResults {
+		result.Nodes = result.Nodes[:maxResults]
+	}
+
+	return result, nil
+}
+
+func (s *Store) searchFactsByEntity(entity string) []semantic.Fact {
+	var facts []semantic.Fact
+	for _, fact := range s.facts {
+		if tf, ok := fact.(semantic.TripleFact); ok && tf.Entity == entity {
+			facts = append(facts, fact)
+		}
+	}
+	return facts
+}
+
+func (s *Store) getRelationshipsBySubject(subject string) []semantic.Relationship {
+	rels, ok := s.relationships[subject]
+	if !ok {
+		return []semantic.Relationship{}
+	}
+	return rels
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 func matchesQuery(fact semantic.Fact, query semantic.SearchQuery) bool {

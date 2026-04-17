@@ -79,10 +79,22 @@ func migrate(db *sql.DB) error {
 		access_count INTEGER DEFAULT 0,
 		access_score REAL DEFAULT 0.0
 	);
+	CREATE TABLE IF NOT EXISTS semantic_relationships (
+		id TEXT PRIMARY KEY,
+		subject TEXT NOT NULL,
+		predicate TEXT NOT NULL,
+		object TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		metadata TEXT
+	);
 	CREATE INDEX IF NOT EXISTS idx_semantic_facts_type ON semantic_facts (type);
 	CREATE INDEX IF NOT EXISTS idx_semantic_facts_entity_attr ON semantic_facts (entity, attribute);
 	CREATE INDEX IF NOT EXISTS idx_semantic_facts_tags ON semantic_facts (tags);
 	CREATE INDEX IF NOT EXISTS idx_semantic_facts_constraints ON semantic_facts (constraints);
+	CREATE INDEX IF NOT EXISTS idx_relationships_subject ON semantic_relationships (subject);
+	CREATE INDEX IF NOT EXISTS idx_relationships_predicate ON semantic_relationships (predicate);
+	CREATE INDEX IF NOT EXISTS idx_relationships_object ON semantic_relationships (object);
+	CREATE INDEX IF NOT EXISTS idx_relationships_subject_predicate ON semantic_relationships (subject, predicate);
 	`
 	_, err := db.Exec(schema)
 	return err
@@ -441,6 +453,198 @@ func (s *Store) DeleteByEntityAttribute(ctx context.Context, entity, attr string
 	return nil
 }
 
+func (s *Store) WriteRelationship(ctx context.Context, rel semantic.Relationship) error {
+	ctx, span := s.tracer.Start(ctx, "sqlite.WriteRelationship", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	span.SetAttributes(attribute.String("relationship.id", rel.ID))
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	metadataJSON, _ := json.Marshal(rel.Metadata)
+
+	query := `
+		INSERT INTO semantic_relationships (id, subject, predicate, object, created_at, metadata)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			subject=excluded.subject,
+			predicate=excluded.predicate,
+			object=excluded.object,
+			created_at=excluded.created_at,
+			metadata=excluded.metadata
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		rel.ID, rel.Subject, rel.Predicate, rel.Object,
+		rel.Metadata.CreatedAt.Format(time.RFC3339),
+		string(metadataJSON),
+	)
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("failed to write relationship: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ReadRelationships(ctx context.Context, subject string) ([]semantic.Relationship, error) {
+	ctx, span := s.tracer.Start(ctx, "sqlite.ReadRelationships", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	span.SetAttributes(attribute.String("relationship.subject", subject))
+
+	query := `SELECT id, subject, predicate, object, created_at, metadata FROM semantic_relationships WHERE subject = ?`
+	rows, err := s.db.QueryContext(ctx, query, subject)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("failed to read relationships: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var rels []semantic.Relationship
+	for rows.Next() {
+		rel, err := scanRelationship(rows)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, fmt.Errorf("failed to scan relationship: %w", err)
+		}
+		rels = append(rels, rel)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return rels, nil
+}
+
+func (s *Store) DeleteRelationship(ctx context.Context, id string) error {
+	ctx, span := s.tracer.Start(ctx, "sqlite.DeleteRelationship", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	span.SetAttributes(attribute.String("relationship.id", id))
+
+	_, err := s.db.ExecContext(ctx, "DELETE FROM semantic_relationships WHERE id = ?", id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("failed to delete relationship: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) TraverseGraph(ctx context.Context, query semantic.GraphQuery) (semantic.GraphResult, error) {
+	ctx, span := s.tracer.Start(ctx, "sqlite.TraverseGraph", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	span.SetAttributes(attribute.String("graph.start_entity", query.StartEntity), attribute.Int("graph.max_depth", query.MaxDepth))
+
+	result := semantic.GraphResult{
+		Nodes: []semantic.GraphNode{},
+		Edges: []semantic.GraphEdge{},
+	}
+
+	visited := make(map[string]bool)
+	queue := []string{query.StartEntity}
+	depth := 0
+	maxDepth := query.MaxDepth
+	if maxDepth <= 0 {
+		maxDepth = 3
+	}
+	maxResults := query.MaxResults
+	if maxResults <= 0 {
+		maxResults = 50
+	}
+
+	predicateFilter := len(query.Predicates) > 0
+
+	for len(queue) > 0 && depth < maxDepth && len(result.Nodes) < maxResults {
+		nextLevel := []string{}
+
+		for _, entity := range queue {
+			if visited[entity] {
+				continue
+			}
+			visited[entity] = true
+
+			facts, err := s.searchFactsByEntity(ctx, entity)
+			if err == nil && len(facts) > 0 {
+				result.Nodes = append(result.Nodes, semantic.GraphNode{
+					Entity: entity,
+					Facts:  facts,
+				})
+			}
+
+			rels, err := s.getRelationshipsBySubject(ctx, entity)
+			if err != nil {
+				continue
+			}
+
+			for _, rel := range rels {
+				if predicateFilter && !contains(query.Predicates, rel.Predicate) {
+					continue
+				}
+
+				result.Edges = append(result.Edges, semantic.GraphEdge{
+					Subject:   rel.Subject,
+					Predicate: rel.Predicate,
+					Object:    rel.Object,
+				})
+
+				if !visited[rel.Object] {
+					nextLevel = append(nextLevel, rel.Object)
+				}
+			}
+		}
+
+		queue = nextLevel
+		depth++
+	}
+
+	if len(result.Nodes) > maxResults {
+		result.Nodes = result.Nodes[:maxResults]
+	}
+
+	return result, nil
+}
+
+func (s *Store) searchFactsByEntity(ctx context.Context, entity string) ([]semantic.Fact, error) {
+	query := `SELECT id, type, entity, attribute, value, statement, sources, tags, constraints, created_at, validated_at, last_accessed, access_count, access_score FROM semantic_facts WHERE entity = ?`
+	rows, err := s.db.QueryContext(ctx, query, entity)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var facts []semantic.Fact
+	for rows.Next() {
+		fact, err := scanFact(rows)
+		if err != nil {
+			return nil, err
+		}
+		facts = append(facts, fact)
+	}
+	return facts, rows.Err()
+}
+
+func (s *Store) getRelationshipsBySubject(ctx context.Context, subject string) ([]semantic.Relationship, error) {
+	query := `SELECT id, subject, predicate, object, created_at, metadata FROM semantic_relationships WHERE subject = ?`
+	rows, err := s.db.QueryContext(ctx, query, subject)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var rels []semantic.Relationship
+	for rows.Next() {
+		rel, err := scanRelationship(rows)
+		if err != nil {
+			return nil, err
+		}
+		rels = append(rels, rel)
+	}
+	return rels, rows.Err()
+}
+
 func (s *Store) Close() error {
 	return s.db.Close()
 }
@@ -506,4 +710,39 @@ func scanFact(s scanner) (semantic.Fact, error) {
 	default:
 		return nil, fmt.Errorf("unknown fact type: %s", factType)
 	}
+}
+
+func scanRelationship(s scanner) (semantic.Relationship, error) {
+	var id, subject, predicate, object, createdAt string
+	var metadataJSON sql.NullString
+
+	err := s.Scan(&id, &subject, &predicate, &object, &createdAt, &metadataJSON)
+	if err != nil {
+		return semantic.Relationship{}, err
+	}
+
+	var metadata semantic.RelationshipMetadata
+	if metadataJSON.Valid {
+		_ = json.Unmarshal([]byte(metadataJSON.String), &metadata)
+	}
+
+	createdTime, _ := time.Parse(time.RFC3339, createdAt)
+	metadata.CreatedAt = createdTime
+
+	return semantic.Relationship{
+		ID:        id,
+		Subject:   subject,
+		Predicate: predicate,
+		Object:    object,
+		Metadata:  metadata,
+	}, nil
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

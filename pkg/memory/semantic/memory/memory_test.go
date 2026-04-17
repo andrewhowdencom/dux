@@ -281,3 +281,206 @@ func TestMemoryStore_NotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
+
+func TestMemoryStore_WriteReadRelationship(t *testing.T) {
+	store := memory.NewStore()
+	defer func() { _ = store.Close() }()
+
+	relID := "test-rel-1"
+	now := time.Now()
+	rel := semantic.Relationship{
+		ID:        relID,
+		Subject:   "person:john",
+		Predicate: "has_condition",
+		Object:    "condition:pvcs",
+		Metadata: semantic.RelationshipMetadata{
+			CreatedAt: now,
+		},
+	}
+
+	err := store.WriteRelationship(context.Background(), rel)
+	if err != nil {
+		t.Fatalf("WriteRelationship failed: %v", err)
+	}
+
+	rels, err := store.ReadRelationships(context.Background(), "person:john")
+	if err != nil {
+		t.Fatalf("ReadRelationships failed: %v", err)
+	}
+
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+
+	if rels[0].Predicate != "has_condition" {
+		t.Errorf("expected predicate 'has_condition', got %s", rels[0].Predicate)
+	}
+	if rels[0].Object != "condition:pvcs" {
+		t.Errorf("expected object 'condition:pvcs', got %s", rels[0].Object)
+	}
+}
+
+func TestMemoryStore_DeleteRelationship(t *testing.T) {
+	store := memory.NewStore()
+	defer func() { _ = store.Close() }()
+
+	relID := "test-rel-delete"
+	now := time.Now()
+	rel := semantic.Relationship{
+		ID:        relID,
+		Subject:   "person:jane",
+		Predicate: "works_at",
+		Object:    "company:acme",
+		Metadata: semantic.RelationshipMetadata{
+			CreatedAt: now,
+		},
+	}
+
+	_ = store.WriteRelationship(context.Background(), rel)
+
+	err := store.DeleteRelationship(context.Background(), relID)
+	if err != nil {
+		t.Fatalf("DeleteRelationship failed: %v", err)
+	}
+
+	rels, err := store.ReadRelationships(context.Background(), "person:jane")
+	if err != nil {
+		t.Fatalf("ReadRelationships failed: %v", err)
+	}
+
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships after delete, got %d", len(rels))
+	}
+}
+
+func TestMemoryStore_TraverseGraph(t *testing.T) {
+	store := memory.NewStore()
+	defer func() { _ = store.Close() }()
+
+	now := time.Now()
+
+	triples := []semantic.TripleFact{
+		{ID: "f1", Entity: "person:john", Attribute: "name", Value: "John Doe", Metadata: semantic.FactMetadata{CreatedAt: now, ValidatedAt: now, LastAccessed: now}},
+		{ID: "f2", Entity: "condition:pvcs", Attribute: "name", Value: "Premature Ventricular Contractions", Metadata: semantic.FactMetadata{CreatedAt: now, ValidatedAt: now, LastAccessed: now}},
+		{ID: "f3", Entity: "symptom:palpitations", Attribute: "description", Value: "Heart palpitations", Metadata: semantic.FactMetadata{CreatedAt: now, ValidatedAt: now, LastAccessed: now}},
+	}
+
+	for _, tri := range triples {
+		_ = store.WriteTriple(context.Background(), tri)
+	}
+
+	rels := []semantic.Relationship{
+		{ID: "r1", Subject: "person:john", Predicate: "has_condition", Object: "condition:pvcs", Metadata: semantic.RelationshipMetadata{CreatedAt: now}},
+		{ID: "r2", Subject: "condition:pvcs", Predicate: "has_symptom", Object: "symptom:palpitations", Metadata: semantic.RelationshipMetadata{CreatedAt: now}},
+	}
+
+	for _, rel := range rels {
+		_ = store.WriteRelationship(context.Background(), rel)
+	}
+
+	query := semantic.GraphQuery{
+		StartEntity: "person:john",
+		MaxDepth:    2,
+	}
+
+	result, err := store.TraverseGraph(context.Background(), query)
+	if err != nil {
+		t.Fatalf("TraverseGraph failed: %v", err)
+	}
+
+	if len(result.Nodes) < 1 {
+		t.Errorf("expected at least 1 node, got %d", len(result.Nodes))
+	}
+
+	if len(result.Edges) != 2 {
+		t.Errorf("expected 2 edges, got %d", len(result.Edges))
+	}
+
+	foundJohn := false
+	for _, node := range result.Nodes {
+		if node.Entity == "person:john" {
+			foundJohn = true
+			break
+		}
+	}
+
+	if !foundJohn {
+		t.Error("expected to find person:john node")
+	}
+}
+
+func TestMemoryStore_TraverseGraphWithPredicateFilter(t *testing.T) {
+	store := memory.NewStore()
+	defer func() { _ = store.Close() }()
+
+	now := time.Now()
+
+	rels := []semantic.Relationship{
+		{ID: "r1", Subject: "person:john", Predicate: "has_condition", Object: "condition:pvcs", Metadata: semantic.RelationshipMetadata{CreatedAt: now}},
+		{ID: "r2", Subject: "person:john", Predicate: "works_at", Object: "company:acme", Metadata: semantic.RelationshipMetadata{CreatedAt: now}},
+	}
+
+	for _, rel := range rels {
+		_ = store.WriteRelationship(context.Background(), rel)
+	}
+
+	query := semantic.GraphQuery{
+		StartEntity: "person:john",
+		Predicates:  []string{"has_condition"},
+		MaxDepth:    1,
+	}
+
+	result, err := store.TraverseGraph(context.Background(), query)
+	if err != nil {
+		t.Fatalf("TraverseGraph failed: %v", err)
+	}
+
+	if len(result.Edges) != 1 {
+		t.Errorf("expected 1 edge with predicate filter, got %d", len(result.Edges))
+	}
+
+	if len(result.Edges) > 0 && result.Edges[0].Predicate != "has_condition" {
+		t.Errorf("expected predicate 'has_condition', got %s", result.Edges[0].Predicate)
+	}
+}
+
+func TestMemoryStore_TraverseGraphMaxDepth(t *testing.T) {
+	store := memory.NewStore()
+	defer func() { _ = store.Close() }()
+
+	now := time.Now()
+
+	rels := []semantic.Relationship{
+		{ID: "r1", Subject: "a", Predicate: "rel1", Object: "b", Metadata: semantic.RelationshipMetadata{CreatedAt: now}},
+		{ID: "r2", Subject: "b", Predicate: "rel2", Object: "c", Metadata: semantic.RelationshipMetadata{CreatedAt: now}},
+		{ID: "r3", Subject: "c", Predicate: "rel3", Object: "d", Metadata: semantic.RelationshipMetadata{CreatedAt: now}},
+	}
+
+	for _, rel := range rels {
+		_ = store.WriteRelationship(context.Background(), rel)
+	}
+
+	query := semantic.GraphQuery{
+		StartEntity: "a",
+		MaxDepth:    1,
+	}
+
+	result, err := store.TraverseGraph(context.Background(), query)
+	if err != nil {
+		t.Fatalf("TraverseGraph failed: %v", err)
+	}
+
+	if len(result.Edges) != 1 {
+		t.Errorf("expected 1 edge with depth 1, got %d", len(result.Edges))
+	}
+
+	query.MaxDepth = 3
+	result, err = store.TraverseGraph(context.Background(), query)
+	if err != nil {
+		t.Fatalf("TraverseGraph failed: %v", err)
+	}
+
+	if len(result.Edges) != 3 {
+		t.Errorf("expected 3 edges with depth 3, got %d", len(result.Edges))
+	}
+}

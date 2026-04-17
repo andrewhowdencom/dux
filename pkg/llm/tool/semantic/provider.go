@@ -24,6 +24,8 @@ func NewProvider(service *semantic.Service) *Provider {
 	p.tools["semantic_search"] = NewSearchTool(service)
 	p.tools["semantic_delete"] = NewDeleteTool(service)
 	p.tools["semantic_validate"] = NewValidateTool(service)
+	p.tools["semantic_create_relationship"] = NewCreateRelationshipTool(service)
+	p.tools["semantic_traverse_graph"] = NewTraverseGraphTool(service)
 
 	return p
 }

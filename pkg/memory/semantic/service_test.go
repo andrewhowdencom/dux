@@ -97,6 +97,22 @@ func (m *mockStore) DeleteByEntityAttribute(ctx context.Context, entity, attr st
 	return nil
 }
 
+func (m *mockStore) WriteRelationship(ctx context.Context, rel semantic.Relationship) error {
+	return nil
+}
+
+func (m *mockStore) ReadRelationships(ctx context.Context, subject string) ([]semantic.Relationship, error) {
+	return []semantic.Relationship{}, nil
+}
+
+func (m *mockStore) DeleteRelationship(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *mockStore) TraverseGraph(ctx context.Context, query semantic.GraphQuery) (semantic.GraphResult, error) {
+	return semantic.GraphResult{}, nil
+}
+
 func (m *mockStore) Close() error {
 	return nil
 }
@@ -314,5 +330,62 @@ func TestService_Constraints(t *testing.T) {
 	retrievedConstraints := facts[0].GetMetadata().Constraints
 	if retrievedConstraints["project"] != "dux" || retrievedConstraints["env"] != "production" {
 		t.Errorf("constraints mismatch: got %v", retrievedConstraints)
+	}
+}
+
+func TestService_CreateRelationship(t *testing.T) {
+	store := memory.NewStore()
+	service := semantic.NewService(store)
+
+	err := service.CreateRelationship(context.Background(), "person:john", "has_condition", "condition:pvcs")
+	if err != nil {
+		t.Fatalf("CreateRelationship failed: %v", err)
+	}
+
+	rels, err := store.ReadRelationships(context.Background(), "person:john")
+	if err != nil {
+		t.Fatalf("ReadRelationships failed: %v", err)
+	}
+
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+
+	if rels[0].Predicate != "has_condition" {
+		t.Errorf("expected predicate 'has_condition', got %s", rels[0].Predicate)
+	}
+	if rels[0].Object != "condition:pvcs" {
+		t.Errorf("expected object 'condition:pvcs', got %s", rels[0].Object)
+	}
+}
+
+func TestService_FindRelatedFacts(t *testing.T) {
+	store := memory.NewStore()
+	service := semantic.NewService(store)
+
+	now := time.Now()
+
+	triples := []semantic.TripleFact{
+		{ID: "f1", Entity: "person:john", Attribute: "name", Value: "John Doe", Metadata: semantic.FactMetadata{CreatedAt: now, ValidatedAt: now, LastAccessed: now}},
+		{ID: "f2", Entity: "condition:pvcs", Attribute: "name", Value: "Premature Ventricular Contractions", Metadata: semantic.FactMetadata{CreatedAt: now, ValidatedAt: now, LastAccessed: now}},
+	}
+
+	for _, tri := range triples {
+		_ = store.WriteTriple(context.Background(), tri)
+	}
+
+	_ = service.CreateRelationship(context.Background(), "person:john", "has_condition", "condition:pvcs")
+
+	result, err := service.FindRelatedFacts(context.Background(), "person:john", 2)
+	if err != nil {
+		t.Fatalf("FindRelatedFacts failed: %v", err)
+	}
+
+	if len(result.Nodes) < 1 {
+		t.Errorf("expected at least 1 node, got %d", len(result.Nodes))
+	}
+
+	if len(result.Edges) != 1 {
+		t.Errorf("expected 1 edge, got %d", len(result.Edges))
 	}
 }

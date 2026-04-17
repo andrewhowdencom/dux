@@ -63,3 +63,38 @@ type FactMetadata struct {
 	AccessScore  float64
 	Constraints  map[string]string
 }
+
+type Relationship struct {
+	ID        string
+	Subject   string
+	Predicate string
+	Object    string
+	Metadata  RelationshipMetadata
+}
+
+type RelationshipMetadata struct {
+	CreatedAt time.Time
+}
+
+type GraphQuery struct {
+	StartEntity string
+	Predicates  []string
+	MaxDepth    int
+	MaxResults  int
+}
+
+type GraphNode struct {
+	Entity string
+	Facts  []Fact
+}
+
+type GraphEdge struct {
+	Subject   string
+	Predicate string
+	Object    string
+}
+
+type GraphResult struct {
+	Nodes []GraphNode
+	Edges []GraphEdge
+}
