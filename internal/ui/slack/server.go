@@ -49,13 +49,14 @@ type Session struct {
 }
 
 type Server struct {
-	api           *slack.Client
-	socketClient  *socketmode.Client
-	sessionsMutex sync.RWMutex
-	sessions      map[string]*Session
-	engineFactory EngineFactory
-	cfg           Config
-	botID         string
+	api            *slack.Client
+	socketClient   *socketmode.Client
+	sessionsMutex  sync.RWMutex
+	sessions       map[string]*Session
+	engineFactory  EngineFactory
+	cfg            Config
+	botID          string
+	toolDisplayCfg config.ToolDisplayConfig
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -90,6 +91,7 @@ func NewServer(cfg Config) (*Server, error) {
 			engine, cfg, _, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 			return engine, cfg, cleanup, err
 		},
+		toolDisplayCfg: config.LoadToolDisplayConfig(),
 	}, nil
 }
 
@@ -307,7 +309,18 @@ func (s *Server) handleMessage(sess *Session, text string) {
 		sess.CleanupOpts = append(sess.CleanupOpts, cleanup)
 	}
 
-	st := NewStreamTracker(s.api, sess.ChannelID, sess.ThreadTS, s.cfg.AgentName)
+	toolConfigs := make(map[string]pkgui.ToolDisplayConfig)
+	for name, cfg := range s.toolDisplayCfg.Tools {
+		toolConfigs[name] = pkgui.ToolDisplayConfig{
+			Icon:         cfg.Icon,
+			HideArgs:     cfg.HideArgs,
+			HideResult:   cfg.HideResult,
+			MaxResultLen: cfg.MaxResultLen,
+		}
+	}
+	formatter := pkgui.NewDefaultToolFormatter(toolConfigs, s.toolDisplayCfg.DefaultIcon)
+
+	st := NewStreamTracker(s.api, sess.ChannelID, sess.ThreadTS, s.cfg.AgentName, WithToolFormatter(formatter))
 	st.OnReset = func() {
 		s.sessionsMutex.Lock()
 		delete(s.sessions, sess.ID)

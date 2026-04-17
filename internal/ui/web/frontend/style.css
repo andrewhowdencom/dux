@@ -285,6 +285,50 @@ body {
     background: var(--border-light);
 }
 
+/* Tool Call Block */
+.tool-call-block {
+    background-color: rgba(36, 40, 59, 0.6);
+    border: 1px solid var(--accent);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    transition: all 0.2s ease;
+}
+
+.tool-call-block.completed {
+    border-left-color: var(--success);
+    opacity: 0.85;
+}
+
+.tool-call-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent-hover);
+    font-weight: 500;
+}
+
+.tool-call-body {
+    font-family: 'Fira Code', monospace;
+    background: var(--code-bg);
+    padding: 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tool-call-status {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
 /* Tool Result Block */
 .tool-result-block {
     background-color: rgba(21, 24, 34, 0.6);

@@ -26,12 +26,13 @@ type Streamer interface {
 type EngineFactory func(ctx context.Context, agentName string, providerID string, agentsFilePath string, hitl llm.HITLHandler, unsafeAllTools bool) (Streamer, *config.InstanceConfig, func(), error)
 
 type Server struct {
-	agentsDir     string
-	agentName     string
-	providerID    string
-	hitl          *WebHITL
-	engineFactory EngineFactory
-	sessionKey    []byte
+	agentsDir      string
+	agentName      string
+	providerID     string
+	hitl           *WebHITL
+	engineFactory  EngineFactory
+	sessionKey     []byte
+	toolDisplayCfg config.ToolDisplayConfig
 
 	sessionsMutex sync.RWMutex
 	sessions      map[string]*Session
@@ -61,8 +62,9 @@ func NewMux(agentsDir string, agentName string, providerID string) *http.ServeMu
 			engine, cfg, _, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsFilePath, hitl, unsafeAllTools)
 			return engine, cfg, cleanup, err
 		},
-		sessionKey: key,
-		sessions:   make(map[string]*Session),
+		sessionKey:     key,
+		toolDisplayCfg: config.LoadToolDisplayConfig(),
+		sessions:       make(map[string]*Session),
 	}
 
 	mux.HandleFunc("/api/session", srv.handleSession)
@@ -192,9 +194,21 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
 	encoder := json.NewEncoder(w)
 
+	toolConfigs := make(map[string]pkgui.ToolDisplayConfig)
+	for name, cfg := range s.toolDisplayCfg.Tools {
+		toolConfigs[name] = pkgui.ToolDisplayConfig{
+			Icon:         cfg.Icon,
+			HideArgs:     cfg.HideArgs,
+			HideResult:   cfg.HideResult,
+			MaxResultLen: cfg.MaxResultLen,
+		}
+	}
+	formatter := pkgui.NewDefaultToolFormatter(toolConfigs, s.toolDisplayCfg.DefaultIcon)
+
 	view := &WebView{
-		encoder: encoder,
-		rc:      rc,
+		encoder:   encoder,
+		rc:        rc,
+		formatter: formatter,
 	}
 
 	session := &pkgui.ChatSession{
@@ -211,8 +225,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 // WebView implements the different UI Extension features.
 type WebView struct {
-	encoder *json.Encoder
-	rc      *http.ResponseController
+	encoder   *json.Encoder
+	rc        *http.ResponseController
+	formatter pkgui.ToolFormatter
 }
 
 func (v *WebView) RenderTextChunk(chunk string) {
@@ -252,17 +267,29 @@ func (v *WebView) RenderThinkingChunk(chunk string) {
 }
 
 func (v *WebView) RenderToolIntent(toolName string, args any) {
-	// The Web frontend currently handles the hitl_request separately.
+	argsMap, _ := args.(map[string]interface{})
+	formatted := map[string]any{
+		"type":      "tool_call",
+		"tool":      toolName,
+		"icon":      v.formatter.GetIcon(toolName),
+		"args":      argsMap,
+		"show_args": v.formatter.ShouldShowArgs(toolName),
+	}
+	if err := v.encoder.Encode(formatted); err != nil {
+		slog.Error("ENCODE ERROR", "err", err)
+	}
 }
 
 func (v *WebView) RenderToolResult(toolName string, result any, isError bool) {
-	err := v.encoder.Encode(map[string]any{
-		"type":     "tool_result",
-		"tool":     toolName,
-		"result":   fmt.Sprintf("%v", result),
-		"is_error": isError,
-	})
-	if err != nil {
+	formatted := map[string]any{
+		"type":        "tool_result",
+		"tool":        toolName,
+		"icon":        v.formatter.GetIcon(toolName),
+		"result":      fmt.Sprintf("%v", result),
+		"is_error":    isError,
+		"show_result": v.formatter.ShouldShowResult(toolName),
+	}
+	if err := v.encoder.Encode(formatted); err != nil {
 		slog.Error("ENCODE ERROR", "err", err)
 	}
 }

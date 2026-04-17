@@ -26,6 +26,20 @@ var (
 	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 )
 
+type terminalConfig struct {
+	toolConfigs map[string]ui.ToolDisplayConfig
+	defaultIcon string
+}
+
+type TerminalOption func(*terminalConfig)
+
+func WithToolDisplayConfig(configs map[string]ui.ToolDisplayConfig, defaultIcon string) TerminalOption {
+	return func(cfg *terminalConfig) {
+		cfg.toolConfigs = configs
+		cfg.defaultIcon = defaultIcon
+	}
+}
+
 type chatBlock struct {
 	kind    string // "text", "thinking", "tool"
 	content string
@@ -58,9 +72,10 @@ type uiModel struct {
 	messages []chatMessage
 	err      error
 
-	program     *tea.Program
-	isStreaming bool
-	quit        bool
+	program       *tea.Program
+	isStreaming   bool
+	quit          bool
+	termFormatter *TerminalFormatter
 }
 
 type uiEventMsg struct {
@@ -96,11 +111,14 @@ func (m *uiModel) RenderThinkingChunk(chunk string) {
 }
 
 func (m *uiModel) RenderToolIntent(toolName string, args any) {
-	m.program.Send(uiEventMsg{Type: "tool_req", Name: toolName, Args: args})
+	argsMap, _ := args.(map[string]interface{})
+	formatted := m.termFormatter.FormatToolCall(toolName, argsMap)
+	m.program.Send(uiEventMsg{Type: "tool_req", Name: toolName, Args: args, Content: formatted})
 }
 
 func (m *uiModel) RenderToolResult(toolName string, result any, isError bool) {
-	m.program.Send(uiEventMsg{Type: "tool_res", Name: toolName, Result: result, IsError: isError})
+	formatted := m.termFormatter.FormatToolResult(toolName, result, isError)
+	m.program.Send(uiEventMsg{Type: "tool_res", Name: toolName, Result: result, IsError: isError, Content: formatted})
 }
 
 func (m *uiModel) RenderTelemetry(telemetry llm.TelemetryPart) {
@@ -122,7 +140,7 @@ func waitForHITL(ch chan ToolApprovalRequestMsg) tea.Cmd {
 	}
 }
 
-func newUIModel(ctx context.Context, sessionID string, initialMessages []llm.Message, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL) *uiModel {
+func newUIModel(ctx context.Context, sessionID string, initialMessages []llm.Message, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL, opts ...TerminalOption) *uiModel {
 	name := agentName
 	if name == "" {
 		name = "Dux"
@@ -157,6 +175,16 @@ func newUIModel(ctx context.Context, sessionID string, initialMessages []llm.Mes
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
+
+	// Apply options
+	cfg := &terminalConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Initialize formatter with config
+	baseFormatter := ui.NewDefaultToolFormatter(cfg.toolConfigs, cfg.defaultIcon)
+	termFormatter := NewTerminalFormatter(baseFormatter, 80)
 
 	uiMsgs := make([]chatMessage, 0, len(initialMessages))
 	for _, msg := range initialMessages {
@@ -207,24 +235,25 @@ func newUIModel(ctx context.Context, sessionID string, initialMessages []llm.Mes
 	}
 
 	m := &uiModel{
-		ctx:       ctx,
-		engine:    engine,
-		modelName: modelName,
-		theme:     theme,
-		agentName: name,
-		textarea:  ta,
-		viewport:  vp,
-		spinner:   s,
-		renderer:  rend,
-		messages:  uiMsgs,
-		sessionID: sessionID,
-		hitl:      hitl,
+		ctx:           ctx,
+		engine:        engine,
+		modelName:     modelName,
+		theme:         theme,
+		agentName:     name,
+		textarea:      ta,
+		viewport:      vp,
+		spinner:       s,
+		renderer:      rend,
+		messages:      uiMsgs,
+		sessionID:     sessionID,
+		hitl:          hitl,
+		termFormatter: termFormatter,
 	}
-	
+
 	if len(uiMsgs) > 0 {
 		m.updateViewport()
 	}
-	
+
 	return m
 }
 
@@ -295,9 +324,9 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Send to LLM using unified Session orchestrator
 			go func(input string) {
 				s := &ui.ChatSession{
-					ID:      m.sessionID,
-					Engine:  m.engine,
-					View:    m,
+					ID:     m.sessionID,
+					Engine: m.engine,
+					View:   m,
 				}
 				err := s.StreamQuery(m.ctx, input)
 				m.program.Send(uiEventMsg{Type: "done", Err: err})
@@ -361,18 +390,10 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "tool_req":
 			lastMsg := &m.messages[lastIdx]
-			lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("Tool Call: %s(%v)", msg.Name, msg.Args)})
+			lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: msg.Content})
 		case "tool_res":
 			lastMsg := &m.messages[lastIdx]
-			resStr := fmt.Sprintf("%v", msg.Result)
-			if len(resStr) > 500 {
-				resStr = resStr[:500] + " ... (truncated)"
-			}
-			if msg.IsError {
-				lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("↳ Error (%s): %s", msg.Name, resStr)})
-			} else {
-				lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: fmt.Sprintf("↳ Result (%s): %s", msg.Name, strings.ReplaceAll(resStr, "\n", "\\n"))})
-			}
+			lastMsg.blocks = append(lastMsg.blocks, &chatBlock{kind: "tool", content: msg.Content})
 		case "telemetry":
 			if m.messages[lastIdx].telemetry == nil {
 				m.messages[lastIdx].telemetry = &llm.TelemetryPart{
@@ -515,8 +536,8 @@ func (m *uiModel) View() string {
 }
 
 // StartREPL begins a synchronous interactive loop wrapping the engine stream.
-func StartREPL(ctx context.Context, sessionID string, initialMessages []llm.Message, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer) error {
-	m := newUIModel(ctx, sessionID, initialMessages, engine, modelName, theme, agentName, hitl)
+func StartREPL(ctx context.Context, sessionID string, initialMessages []llm.Message, engine llm.Engine, modelName, theme, agentName string, hitl *BubbleTeaHITL, in io.Reader, out io.Writer, opts ...TerminalOption) error {
+	m := newUIModel(ctx, sessionID, initialMessages, engine, modelName, theme, agentName, hitl, opts...)
 	p := tea.NewProgram(
 		m,
 		tea.WithAltScreen(),

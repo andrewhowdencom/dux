@@ -8,11 +8,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/google/uuid"
-	"github.com/andrewhowdencom/dux/internal/ui"
+	"github.com/andrewhowdencom/dux/internal/config"
+	internalui "github.com/andrewhowdencom/dux/internal/ui"
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/memory/working"
 	"github.com/andrewhowdencom/dux/pkg/terminal"
+	"github.com/andrewhowdencom/dux/pkg/ui"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -22,6 +24,20 @@ var chatTheme string
 var agentName string
 var unsafeAllTools bool
 var historyPath string
+
+func makeToolConfigs() (map[string]ui.ToolDisplayConfig, string) {
+	toolDisplayCfg := config.LoadToolDisplayConfig()
+	toolConfigs := make(map[string]ui.ToolDisplayConfig)
+	for name, cfg := range toolDisplayCfg.Tools {
+		toolConfigs[name] = ui.ToolDisplayConfig{
+			Icon:         cfg.Icon,
+			HideArgs:     cfg.HideArgs,
+			HideResult:   cfg.HideResult,
+			MaxResultLen: cfg.MaxResultLen,
+		}
+	}
+	return toolConfigs, toolDisplayCfg.DefaultIcon
+}
 
 var chatCmd = &cobra.Command{
 	Use:   "chat",
@@ -40,7 +56,7 @@ var chatCmd = &cobra.Command{
 		}()
 
 		hitl := terminal.NewBubbleTeaHITL()
-		engine, selectedCfg, mem, cleanup, err := ui.NewEngine(ctx, agentName, providerID, agentsDir, hitl, unsafeAllTools)
+		engine, selectedCfg, mem, cleanup, err := internalui.NewEngine(ctx, agentName, providerID, agentsDir, hitl, unsafeAllTools)
 		if err != nil {
 			return err
 		}
@@ -57,7 +73,7 @@ var chatCmd = &cobra.Command{
 				if err := json.Unmarshal(data, &msgs); err == nil {
 					initialMessages = msgs
 				}
-				
+
 				for _, msg := range initialMessages {
 					_ = mem.Append(ctx, initialSessionID, msg)
 				}
@@ -85,7 +101,21 @@ var chatCmd = &cobra.Command{
 			theme = "dark"
 		}
 
-		_ = terminal.StartREPL(ctx, initialSessionID, initialMessages, engine, modelName, theme, agentName, hitl, os.Stdin, os.Stdout)
+		toolConfigs, defaultIcon := makeToolConfigs()
+
+		_ = terminal.StartREPL(
+			ctx,
+			initialSessionID,
+			initialMessages,
+			engine,
+			modelName,
+			theme,
+			agentName,
+			hitl,
+			os.Stdin,
+			os.Stdout,
+			terminal.WithToolDisplayConfig(toolConfigs, defaultIcon),
+		)
 
 		fmt.Println("\nChat session ended.")
 		return nil
