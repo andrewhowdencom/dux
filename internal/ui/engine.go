@@ -273,6 +273,22 @@ func compileOptions(
 	// Inject standard transition tools statically
 	if len(transitionTools) > 0 {
 		resolvers = append(resolvers, static.New("transitions", transitionTools...))
+		// Transitions bypass HITL by default because:
+		// 1. Transition tools only emit signals (no side effects)
+		// 2. Modes are pre-configured in agent.yaml (no arbitrary mode switching)
+		// 3. Mode configurations define their own tool supervision rules
+		// 4. Users can override by setting supervision: true for "transitions" namespace
+		//
+		// Example override in agent.yaml:
+		//   context:
+		//     tools:
+		//       - name: "transitions"
+		//         enabled: true
+		//         requirements:
+		//           supervision: true
+		if _, exists := requiresSupervision["transitions"]; !exists {
+			requiresSupervision["transitions"] = false
+		}
 	}
 
 	hitlMiddleware := llm.NewHITLMiddleware(hitl, requiresSupervision, unsafeAllTools)

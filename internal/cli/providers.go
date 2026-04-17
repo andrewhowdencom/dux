@@ -32,13 +32,13 @@ var providersListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tTYPE\tDETAILS\tDEFAULT")
+		_, _ = fmt.Fprintln(w, "ID\tTYPE\tDETAILS\tDEFAULT")
 		for _, info := range infos {
 			defaultMark := ""
 			if info.IsDefault {
 				defaultMark = "yes"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", info.ID, info.Type, info.Details, defaultMark)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", info.ID, info.Type, info.Details, defaultMark)
 		}
 		return w.Flush()
 	},

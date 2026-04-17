@@ -32,9 +32,9 @@ var agentsListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tPROVIDER\tMODES\tTRIGGERS")
+		_, _ = fmt.Fprintln(w, "NAME\tPROVIDER\tMODES\tTRIGGERS")
 		for _, info := range infos {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", info.Name, info.Provider, info.Modes, info.Triggers)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", info.Name, info.Provider, info.Modes, info.Triggers)
 		}
 		return w.Flush()
 	},
@@ -63,9 +63,9 @@ var agentsModesListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "AGENT\tMODE\tPROVIDER\tTRANSITIONS")
+		_, _ = fmt.Fprintln(w, "AGENT\tMODE\tPROVIDER\tTRANSITIONS")
 		for _, info := range infos {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", info.AgentName, info.Name, info.Provider, info.Transitions)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", info.AgentName, info.Name, info.Provider, info.Transitions)
 		}
 		return w.Flush()
 	},

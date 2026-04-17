@@ -28,6 +28,9 @@ jobs:
       - name: Setup environment
         run: task setup
 
+      - name: Install mkdocs
+        run: pip install mkdocs
+
       - name: Generate code
         run: task generate
 
