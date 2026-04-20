@@ -20,6 +20,7 @@ import (
 	static_resolver "github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	stdlibtool "github.com/andrewhowdencom/dux/pkg/llm/tool/stdlib"
 	workspacetool "github.com/andrewhowdencom/dux/pkg/llm/tool/workspace"
+	semmem "github.com/andrewhowdencom/dux/pkg/memory/semantic"
 	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
@@ -161,7 +162,8 @@ func NewResolversFromConfig(cfgs []string, deps ResolverDependencies) ([]llm.Too
 					if err != nil {
 						return nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
 					}
-					results = append(results, semantic.NewProvider(store))
+					service := semmem.NewService(store)
+					results = append(results, semantic.NewProvider(service))
 					semanticIncluded = true
 				}
 			} else if c == "read_working_memory" {
