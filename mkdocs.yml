@@ -48,6 +48,7 @@ nav:
     - "Configuring Agents": how-to/configuring-agents.md
     - "Configuring Gemini": how-to/configuring-gemini.md
     - "Configuring MCP Servers": how-to/configuring-mcp.md
+    - "Configuring Tools": how-to/configuring-tools.md
     - "Configuring Slack UI": how-to/slack-ui.md
     - "Custom Tools": how-to/custom-tools.md
     - "Group Tools": how-to/group-tools.md

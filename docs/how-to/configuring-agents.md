@@ -92,7 +92,7 @@ triggers:
         *   `context` (object): The strict focus limitations injected during this phase of execution.
             *   `system` (string): The overarching intent or persona limitation for this mode.
             *   `enrichers` (array): A list of dynamic context injection tools (e.g. time, os).
-            *   `tools` (array): The exact tools the LLM has access to during this mode.
+            *   `tools` (array): The exact tools the LLM has access to during this mode. See [How-To: Configuring Tools for Agents](configuring-tools.md) for detailed examples.
                 *   `name` (string): Identifier for the tool or MCP server.
                 *   `enabled` (bool): Whether the tool is active.
                 *   `requirements` (object): Specify CEL-based `supervision` policies.

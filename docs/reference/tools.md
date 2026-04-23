@@ -4,6 +4,9 @@ Tools allow agents to perform actions outside of their core generative capabilit
 
 This document serves as a reference for all built-in tools available natively within `dux`. Tools are organized by **bundle** (namespace). In your agent configuration you can enable an entire bundle at once instead of listing each tool individually.
 
+!!! tip "Configuring Tools in Agents"
+    For step-by-step instructions on enabling bundles, setting supervision policies, and wiring custom tools into your agent configurations, see the [How-To: Configuring Tools for Agents](../how-to/configuring-tools.md) guide.
+
 ## Tool Bundles Overview
 
 | Bundle | Description | Tools |
@@ -722,6 +725,9 @@ Read and write to the semantic knowledge graph (long-term memory).
 
 `dux` allows defining custom CLI tools declaratively via configuration, allowing agents to execute local binaries securely without going through a standard Unix shell.
 
+!!! tip "How-To Guide Available"
+    See [How-To: Configuring Tools for Agents](../how-to/configuring-tools.md) for complete walkthroughs of binary tool definitions, agent activation, and supervision policies.
+
 These tools are defined in the globally available `tools` configuration block (or directly on an agent) using the `binary` mapping.
 
 **Configuration Schema:**
@@ -751,6 +757,9 @@ tools:
 ---
 
 ## Tool Bundles & Supervision (CEL)
+
+!!! tip "How-To Guide Available"
+    See [How-To: Configuring Tools for Agents](../how-to/configuring-tools.md) for complete walkthroughs of enabling bundles and writing CEL supervision expressions.
 
 With `dux` agents configuration, tools natively group together into broader **namespaces** or **bundles** (`stdlib`, `filesystem`, `semantic`). Instead of enabling `file_read` and `file_write` individually, simply specify `name: "filesystem"` in your agent tools configuration.
 
