@@ -53,28 +53,46 @@ func (w *WeatherTool) Execute(ctx context.Context, args map[string]interface{}) 
 
 ## 2. Injecting your custom Tools
 
-Dux resolves tools asynchronously using the `llm.ToolResolver` interface, ensuring capabilities like MCP (remote tool protocols) can dynamically provide schemas.
+Dux resolves tools asynchronously using the `llm.ToolProvider` interface, ensuring capabilities like MCP (remote tool protocols) can dynamically provide schemas.
 
-For simple compiled Go structures like the one above, bundle them using the built-in `static` resolver and map them as a functional option to the `SessionHandler`.
+For simple compiled Go structures like the one above, bundle them using the built-in `static` resolver and pass them as a functional option when constructing the engine.
 
 ```go
 import (
+	"context"
+	"fmt"
+
 	"github.com/andrewhowdencom/dux/pkg/llm"
+	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 )
 
 // Construct your standard business tools
-myTools := static.New(
-	&WeatherTool{},
+myTools := static.New("weather", &WeatherTool{})
+
+// Build the engine with the custom tool resolver
+engine := adapter.New(
+	adapter.WithProvider(prv),   // your pre-configured provider
+	adapter.WithResolver(myTools),
 )
 
-// Orchestrate the new session
-handler := llm.NewSessionHandler(
-	engine, 
-	receiver, 
-	sender,
-	llm.WithResolver(myTools), // Native Tool interception & recursion happens here!
-)
+// Stream a message that may invoke get_weather
+ctx := llm.WithSessionID(context.Background(), "demo-session")
+msg := llm.Message{
+	Identity: llm.Identity{Role: "user"},
+	Parts:    []llm.Part{llm.TextPart("What is the weather in London?")},
+}
 
-handler.ListenAndServe(ctx)
+stream, err := engine.Stream(ctx, msg)
+if err != nil {
+	log.Fatalf("failed to stream: %v", err)
+}
+
+for yield := range stream {
+	for _, part := range yield.Parts {
+		if textPart, ok := part.(llm.TextPart); ok {
+			fmt.Print(textPart)
+		}
+	}
+}
 ```

@@ -5,7 +5,7 @@ The `dux` execution engine is structured to prioritize recursive parsing nativel
 Every provider logic implementation inherits a strict `Provider` interface abstraction, forcing compliance to normalized stream mappings. Because large language models constantly output data streams over WebSockets via chunked encoding layers, this simplifies the interface down to raw generator streams.
 
 ### Provider Factory
-To avoid leaking provider semantics to consumers (e.g. your application), all providers register a global instance loader via `pkg/llm/provider/factory`. You feed standard Viper generic data objects parsed dynamically (`map[string]any`) from `config.yaml`, and Dux matches the block definitions based on strings like `"ollama"`, `"openai"`, `"gemini"`, or `"static"`.
+To avoid leaking provider semantics to consumers (e.g. your application), the CLI layer (`internal/ui/factory.go`) deserializes Viper generic data objects parsed dynamically (`map[string]any`) from `config.yaml` and constructs the concrete provider. Library consumers bypass this entirely by calling provider constructors directly (e.g. `ollama.New(...)`, `static.New(...)`).
 
 ### Adapter Layers
 Unlike standard raw strings mapped straight to `.Stdout`, `pkg/llm/adapter` allows users to nest execution engines recursively. This creates standard abstractions useful for testing tools:

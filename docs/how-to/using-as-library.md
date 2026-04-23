@@ -45,8 +45,7 @@ import (
 func main() {
 	// 1. Initialize the Provider
 	// Use your desired LLM backend. The static provider simply returns canned text.
-	providerCfg := map[string]interface{}{"text": "Hello from the pure Go library!"}
-	prv, err := static.New(providerCfg)
+	prv, err := static.New(static.WithText("Hello from the pure Go library!"))
 	if err != nil {
 		log.Fatalf("failed to create provider: %v", err)
 	}
@@ -58,17 +57,18 @@ func main() {
 		adapter.WithWorkingMemory(working.NewInMemory()),
 		adapter.WithSystemPrompt("You are a helpful agent."),
 		adapter.WithEnrichers(
-			enrich.NewTime(),
-			enrich.NewOS(),
+			[]llm.BeforeGenerateHook{
+				enrich.NewTime(),
+				enrich.NewOS(),
+			},
 		),
 	)
 
 	// 3. Coordinate messaging
-	ctx := context.Background()
+	ctx := llm.WithSessionID(context.Background(), "my-custom-session")
 	msg := llm.Message{
-		SessionID: "my-custom-session",
-		Identity:  llm.Identity{Role: "user"},
-		Parts:     []llm.Part{llm.TextPart("Can you verify this setup?")},
+		Identity: llm.Identity{Role: "user"},
+		Parts:    []llm.Part{llm.TextPart("Can you verify this setup?")},
 	}
 
 	// 4. Stream Results
@@ -89,6 +89,6 @@ func main() {
 
 ## Why Pure Go Interfaces?
 
-When importing `github.com/andrewhowdencom/dux/pkg/llm`, consumers are completely spared from internal dependencies (such as the `dux/internal` config models). 
-* **Type-safety**: Options like `enrich.NewTime()` are strictly bound by the `enrich.Enricher` interface natively at compile time.
-* **Flexibility**: You can write your *own* custom providers or enrichers in your application and inject them variadically into `adapter.New()` without having to "register" them globally.
+When importing `github.com/andrewhowdencom/dux/pkg/llm`, consumers are completely spared from internal dependencies (such as the `dux/internal` config models).
+* **Type-safety**: Options like `enrich.NewTime()` return `llm.BeforeGenerateHook`, which the engine accepts at compile time.
+* **Flexibility**: You can write your *own* custom hooks or providers in your application and inject them variadically into `adapter.New()` without having to "register" them globally.

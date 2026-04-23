@@ -55,19 +55,10 @@ engine := adapter.New(
 	adapter.WithProvider(prv), // Pre-configured provider
 	adapter.WithWorkingMemory(working.NewInMemory()),
 	adapter.WithSystemPrompt("You are a helpful, empathetic Customer Support Assistant..."),
-	adapter.WithEnrichers([]enrich.Enricher{
+	adapter.WithEnrichers([]llm.BeforeGenerateHook{
 		enrich.NewOS(),
 	}),
-)
-
-// Intercept tools via the SessionHandler loop
-handler := llm.NewSessionHandler(
-	engine, 
-	receiver, 
-	sender,
-	llm.WithResolver(static.New(
-		stdlib.New(),
-	)),
+	adapter.WithResolver(static.New("stdlib", stdlib.New())),
 )
 
 ```
@@ -84,6 +75,6 @@ dux chat --agent support-assistant
 
 To fully realize a Customer Support Agent, Dux needs further architectural investments to overcome these gaps:
 
-- **RAG (Retrieval-Augmented Generation) (RESOLVED)**: `adapter.Engine` now natively loops tool calls. By injecting a simple custom Go `ToolResolver` equipped with a vector DB search integration, Dux can actively query local knowledge bases and seamlessly retrieve context necessary for complex support queries without any external orchestrators!
+- **RAG (Retrieval-Augmented Generation) (RESOLVED)**: `adapter.Engine` now natively loops tool calls. By injecting a simple custom Go `ToolProvider` equipped with a vector DB search integration, Dux can actively query local knowledge bases and seamlessly retrieve context necessary for complex support queries without any external orchestrators!
 - **Conversation State Persistence**: While in-memory history is tracked during a session, Dux cannot recall past support tickets for a specific user across separate sessions.
 - **Tone and Guardrails**: There is no built-in mechanism to enforce guardrails (e.g., preventing the AI from making legal promises or hallucinating refunds) outside of simple zero-shot prompting in the system file.
