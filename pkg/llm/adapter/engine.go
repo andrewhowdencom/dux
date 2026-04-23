@@ -248,29 +248,42 @@ func (e *Engine) recursiveStream(ctx context.Context, sessionID string, out chan
 			// Crucial: The LLM Provider expects a graph constraint where every ToolRequest is followed by a ToolResult.
 			// Even though we are breaking the runloop to hot-swap the engine, we MUST inject a pseudo-result
 			// bridging the old state so the new Engine does not instantly drop the 'corrupted' history matrix.
-			results = append(results, llm.ToolResultPart{
+			pseudo := llm.ToolResultPart{
 				ToolID: tc.ToolID,
 				Name:   tc.Name,
 				Result: "State Machine Transition successfully hooked.",
-			})
+			}
+			if e.history != nil {
+				toolMsg := llm.Message{
+					SessionID: sessionID,
+					Identity:  llm.Identity{Role: "tool"},
+					Parts:     []llm.Part{pseudo},
+				}
+				if err := e.history.Append(ctx, sessionID, toolMsg); err != nil {
+					e.sendError(ctx, out, err, sessionID)
+					return
+				}
+			}
+			results = append(results, pseudo)
 		} else if tr, ok := resPart.(llm.ToolResultPart); ok {
+			// Stream each tool result to the client and append to history immediately
+			// so the UI sees results chronologically as they finish.
+			toolMsg := llm.Message{
+				SessionID: sessionID,
+				Identity:  llm.Identity{Role: "tool"},
+				Parts:     []llm.Part{tr},
+			}
+
+			if e.history != nil {
+				if err := e.history.Append(ctx, sessionID, toolMsg); err != nil {
+					e.sendError(ctx, out, err, sessionID)
+					return
+				}
+			}
+
+			e.safeSend(ctx, out, toolMsg)
+
 			results = append(results, tr)
-		}
-	}
-
-	// Build tool message for history
-	toolMsg := llm.Message{
-		SessionID: sessionID,
-		Identity:  llm.Identity{Role: "tool"},
-	}
-	for _, pr := range results {
-		toolMsg.Parts = append(toolMsg.Parts, pr)
-	}
-
-	if e.history != nil {
-		if err := e.history.Append(ctx, sessionID, toolMsg); err != nil {
-			e.sendError(ctx, out, err, sessionID)
-			return
 		}
 	}
 
@@ -283,8 +296,6 @@ func (e *Engine) recursiveStream(ctx context.Context, sessionID string, out chan
 		e.safeSend(ctx, out, transMsg)
 		return // gracefully break the recursion loop
 	}
-
-	e.safeSend(ctx, out, toolMsg)
 
 	// Update tool history and recurse
 	newHistory := toolHistory
