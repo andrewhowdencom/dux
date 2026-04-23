@@ -94,4 +94,4 @@ Although Dux can assume the persona, treating this usecase fully requires capabi
 
 - **RAG (Retrieval-Augmented Generation)**: Dux does not yet have a native vector database integration or document chunking system to dynamically pull relevant context on the fly without custom external tools.
 - **Context Window Limits**: Extremely large documentation sets cannot just be stuffed into the prompt; they require more advanced orchestration that Dux's core CLI does not natively manage out-of-the-box.
-- **Tool Use / Integrations (RESOLVED)**: Thanks to the newly integrated `adapter.Engine` recursive tool loops and `ToolMiddleware` architecture, Dux can natively leverage custom Go tools like filesystem and bash seamlessly!
+- **Tool Use / Integrations (RESOLVED)**: Thanks to the newly integrated `adapter.Engine` recursive tool loops and `BeforeTool` hook architecture, Dux can natively leverage custom Go tools like filesystem and bash seamlessly!

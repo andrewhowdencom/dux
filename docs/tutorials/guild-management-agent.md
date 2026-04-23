@@ -61,5 +61,5 @@ You can feed raw transcripts from meeting recordings or bullet points to have th
 Managing an internal guild requires multifaceted coordination. Dux is currently limited by the following gaps:
 
 - **Multi-Agent Workflows**: Typically, you require a pipeline: Agent A extracts transcripts, Agent B summarizes, and Agent C writes the marketing copy. Dux does not currently support orchestrating multiple agents in a single workflow.
-- **External API Integrations (RESOLVED)**: With the new `adapter.Engine` enabling robust, recursive tool execution and middleware observation, you can inject tools that query Google Calendar or post directly to Slack, effectively managed and autonomously driven by the LLM sequence layer.
+- **External API Integrations (RESOLVED)**: With the new `adapter.Engine` enabling robust, recursive tool execution and lifecycle hook observation, you can inject tools that query Google Calendar or post directly to Slack, effectively managed and autonomously driven by the LLM sequence layer.
 - **Asynchronous Execution**: There is no daemon or cron-like orchestration in Dux to process long background jobs (e.g., waiting for an hour-long meeting video to be transcribed, then summarizing it).

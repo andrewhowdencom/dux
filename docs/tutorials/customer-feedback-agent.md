@@ -66,4 +66,4 @@ Although Dux can assume the persona, treating this use case fully requires capab
 
 - **Batch Processing**: Dux currently operates primarily via interactive chat. It lacks a native mechanism to pipe large CSVs or databases of feedback directly into the agent for bulk processing.
 - **Output Schemas (Structured JSON)**: We cannot yet force the LLM to strictly output valid JSON schema to be piped into a downstream ticketing system (like Jira).
-- **Tool Use / Integrations (RESOLVED)**: Thanks to the newly integrated `adapter.Engine` recursive tool loops and `ToolMiddleware` architecture, Dux can natively leverage custom Go tools to seamlessly query a Zendesk API or write directly to a Notion board!
+- **Tool Use / Integrations (RESOLVED)**: Thanks to the newly integrated `adapter.Engine` recursive tool loops and `BeforeTool` hook architecture, Dux can natively leverage custom Go tools to seamlessly query a Zendesk API or write directly to a Notion board!

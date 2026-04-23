@@ -123,13 +123,6 @@ func TestEngine_ToolExecution(t *testing.T) {
 		adapter.WithProvider(provider),
 		adapter.WithResolver(resolver),
 		adapter.WithBeforeTool(securityHook),
-		adapter.WithBeforeGenerate(func(ctx context.Context, req *llm.BeforeGenerateRequest) error {
-			t.Logf("DEBUG BeforeGenerate: session=%s messages=%d", req.SessionID, len(req.CurrentMessages))
-			for i, m := range req.CurrentMessages {
-				t.Logf("  msg%d: role=%s parts=%d", i, m.Identity.Role, len(m.Parts))
-			}
-			return nil
-		}),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -167,11 +160,6 @@ func TestEngine_ToolExecution(t *testing.T) {
 
 	if !hookTriggered {
 		t.Errorf("expected BeforeTool hook to be triggered")
-	}
-
-	// Debug: print history contents after stream
-	for i, msg := range hist.messages["123"] {
-		t.Logf("HISTORY msg%d: role=%s parts=%d", i, msg.Identity.Role, len(msg.Parts))
 	}
 
 	// Ensure that the final response matched the recursive executed tool answer
