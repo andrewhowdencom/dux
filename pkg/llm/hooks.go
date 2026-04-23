@@ -9,7 +9,6 @@ import (
 type BeforeStartRequest struct {
 	SessionID  string
 	InitialMsg Message
-	Mode       string // workflow mode, if applicable
 }
 
 // BeforeGenerateRequest carries context for the BeforeGenerate hook.
@@ -18,14 +17,11 @@ type BeforeStartRequest struct {
 type BeforeGenerateRequest struct {
 	SessionID       string
 	CurrentMessages []Message // accumulated from prior hooks
-	PendingResults  []ToolResultPart
-	Mode            string
 }
 
 // BeforeToolRequest carries context for the BeforeTool hook.
 type BeforeToolRequest struct {
 	SessionID string
-	Mode      string
 	ToolCall  ToolRequestPart
 	CallIndex int // 0-based index of this tool call within the current session
 }
@@ -33,7 +29,6 @@ type BeforeToolRequest struct {
 // AfterToolRequest carries context for the AfterTool hook.
 type AfterToolRequest struct {
 	SessionID string
-	Mode      string
 	ToolCall  ToolRequestPart
 	Result    ToolResultPart
 	Duration  time.Duration
@@ -51,10 +46,8 @@ type ToolExecutionRecord struct {
 // AfterCompleteRequest carries context for the AfterComplete hook.
 type AfterCompleteRequest struct {
 	SessionID    string
-	Mode         string
 	FinalMessage Message
 	ToolHistory  []ToolExecutionRecord
-	Transition   *TransitionSignalPart
 }
 
 // BeforeStartHook fires once per Stream() call, before any LLM interaction.

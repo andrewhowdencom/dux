@@ -99,7 +99,7 @@ func (m *uiModel) RenderError(err error) {
 }
 
 func (m *uiModel) PromptHITL(req *llm.ToolRequestPart) {
-	// HITL is already handled dynamically through the BubbleTeaHITL middleware channels.
+	// HITL is already handled dynamically through the BubbleTeaHITL hook channels.
 }
 
 func (m *uiModel) Flush() {

@@ -30,7 +30,7 @@ Applications need to easily track ongoing conversational turns.
   - `SQLiteHistoryStore` or `FileHistoryStore` (persistent)
 - **Token-Aware Windowing (Sliding Memory)**: As conversations grow, they breach context limits. The library needs a `WindowManager` that intelligently prunes history.
   - Using the `TelemetryPart` emitted by providers, the `WindowManager` tracks token usage and can truncate the oldest messages (excluding `System` instructions) dynamically.
-- **Summary Memory**: For very long contexts, instead of simply evicting old messages, a middleware could trigger a background LLM call to summarize evicted messages and prepend the summary to the history.
+- **Summary Memory**: For very long contexts, instead of simply evicting old messages, a BeforeGenerate hook could trigger a background LLM call to summarize evicted messages and prepend the summary to the history.
 
 ### Long-Term Memory (Semantic / Episodic)
 For an agent to "remember" items from past, separate sessions.

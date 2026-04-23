@@ -155,14 +155,14 @@ func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan l
 		}
 
 		// Initial recursive loop trigger (no tool results yet)
-		e.recursiveStream(ctx, sessionID, inputMessage, out, nil, nil)
+		e.recursiveStream(ctx, sessionID, out, nil, nil)
 	}()
 
 	return out, nil
 }
 
 // recursiveStream fetches history, injects definitions, streams from the provider, handles tools, and restarts if necessary.
-func (e *Engine) recursiveStream(ctx context.Context, sessionID string, initialInput llm.Message, out chan<- llm.Message, pendingResults []llm.ToolResultPart, toolHistory []llm.ToolExecutionRecord) {
+func (e *Engine) recursiveStream(ctx context.Context, sessionID string, out chan<- llm.Message, pendingResults []llm.ToolResultPart, toolHistory []llm.ToolExecutionRecord) {
 	// Build prompt messages via BeforeGenerate hooks
 	msgs, err := e.buildPromptMessages(ctx, sessionID, pendingResults)
 	if err != nil {
@@ -295,15 +295,14 @@ func (e *Engine) recursiveStream(ctx context.Context, sessionID string, initialI
 		})
 	}
 
-	e.recursiveStream(ctx, sessionID, initialInput, out, results, newHistory)
+	e.recursiveStream(ctx, sessionID, out, results, newHistory)
 }
 
 // buildPromptMessages runs BeforeGenerate hooks serially, then injects tool
 // definitions, and finally sorts by Volatility.
 func (e *Engine) buildPromptMessages(ctx context.Context, sessionID string, pendingResults []llm.ToolResultPart) ([]llm.Message, error) {
 	req := llm.BeforeGenerateRequest{
-		SessionID:      sessionID,
-		PendingResults: pendingResults,
+		SessionID: sessionID,
 	}
 
 	// Run BeforeGenerate hooks serially; each may mutate CurrentMessages
