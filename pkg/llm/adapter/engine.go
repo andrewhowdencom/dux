@@ -367,10 +367,27 @@ func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.Tool
 		Name:   req.Name,
 	}
 
+	// Resolve the target tool and its namespace before running hooks so that
+	// BeforeTool hooks (such as HITL policy checks) have access to the namespace.
+	var targetTool llm.Tool
+	var namespace string
+	for _, r := range e.resolvers {
+		if t, found := r.GetTool(req.Name); found {
+			targetTool = t
+			namespace = r.Namespace()
+			break
+		}
+	}
+
+	evalCtx := ctx
+	if targetTool != nil {
+		evalCtx = context.WithValue(ctx, llm.ContextKeyNamespace, namespace)
+	}
+
 	// BeforeTool hooks
 	if len(e.beforeTool) > 0 {
 		for _, h := range e.beforeTool {
-			if err := h(ctx, llm.BeforeToolRequest{
+			if err := h(evalCtx, llm.BeforeToolRequest{
 				SessionID: sessionID,
 				ToolCall:  req,
 				CallIndex: callIndex,
@@ -381,7 +398,7 @@ func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.Tool
 				// AfterTool: notify observers of the blocked tool
 				if len(e.afterTool) > 0 {
 					for _, ah := range e.afterTool {
-						_ = ah(ctx, llm.AfterToolRequest{
+						_ = ah(evalCtx, llm.AfterToolRequest{
 							SessionID: sessionID,
 							ToolCall:  req,
 							Result:    resultPart,
@@ -394,23 +411,13 @@ func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.Tool
 		}
 	}
 
-	var targetTool llm.Tool
-	var namespace string
-	for _, r := range e.resolvers {
-		if t, found := r.GetTool(req.Name); found {
-			targetTool = t
-			namespace = r.Namespace()
-			break
-		}
-	}
-
 	if targetTool == nil {
 		resultPart.Result = "Error: Tool not found"
 		resultPart.IsError = true
 
 		if len(e.afterTool) > 0 {
 			for _, h := range e.afterTool {
-				_ = h(ctx, llm.AfterToolRequest{
+				_ = h(evalCtx, llm.AfterToolRequest{
 					SessionID: sessionID,
 					ToolCall:  req,
 					Result:    resultPart,
@@ -419,8 +426,6 @@ func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.Tool
 		}
 		return resultPart
 	}
-
-	evalCtx := context.WithValue(ctx, llm.ContextKeyNamespace, namespace)
 
 	start := time.Now()
 	res, err := targetTool.Execute(evalCtx, req.Args)
@@ -434,7 +439,7 @@ func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.Tool
 			// AfterTool for transitions
 			if len(e.afterTool) > 0 {
 				for _, h := range e.afterTool {
-					_ = h(ctx, llm.AfterToolRequest{
+					_ = h(evalCtx, llm.AfterToolRequest{
 						SessionID: sessionID,
 						ToolCall:  req,
 						Result:    resultPart,
@@ -447,7 +452,7 @@ func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.Tool
 		if transitionPtr, ok := res.(*llm.TransitionSignalPart); ok {
 			if len(e.afterTool) > 0 {
 				for _, h := range e.afterTool {
-					_ = h(ctx, llm.AfterToolRequest{
+					_ = h(evalCtx, llm.AfterToolRequest{
 						SessionID: sessionID,
 						ToolCall:  req,
 						Result:    resultPart,
@@ -463,7 +468,7 @@ func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.Tool
 	// AfterTool hooks
 	if len(e.afterTool) > 0 {
 		for _, h := range e.afterTool {
-			_ = h(ctx, llm.AfterToolRequest{
+			_ = h(evalCtx, llm.AfterToolRequest{
 				SessionID: sessionID,
 				ToolCall:  req,
 				Result:    resultPart,
