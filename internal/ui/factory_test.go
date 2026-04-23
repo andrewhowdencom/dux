@@ -26,27 +26,43 @@ func TestNewEnrichersFromConfig(t *testing.T) {
 		t.Fatalf("expected 4 enrichers, got %d", len(enrichers))
 	}
 
-	// Test Inject execution on prompt
+	// Test BeforeGenerate hook execution on prompt
 	ctx := context.Background()
-	res, err := enrichers[2].Inject(ctx, llm.InjectQuery{})
+	req := &llm.BeforeGenerateRequest{SessionID: "test"}
+	err = enrichers[2](ctx, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expectedContent := "Do not rm -rf /."
-	if len(res) == 0 || !strings.Contains(res[0].Text(), expectedContent) {
-		t.Errorf("prompt enricher did not return expected content. Output: %v", res)
+	found := false
+	for _, msg := range req.CurrentMessages {
+		if strings.Contains(msg.Text(), expectedContent) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("prompt enricher did not return expected content. Output: %v", req.CurrentMessages)
 	}
 
-	// Test Inject execution on guard_rail
-	resGuardRail, err := enrichers[3].Inject(ctx, llm.InjectQuery{})
+	// Test BeforeGenerate hook execution on guard_rail
+	reqGuardRail := &llm.BeforeGenerateRequest{SessionID: "test"}
+	err = enrichers[3](ctx, reqGuardRail)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expectedGuardRailContent := "Do not mention unicorns."
-	if len(resGuardRail) == 0 || !strings.Contains(resGuardRail[0].Text(), expectedGuardRailContent) {
-		t.Errorf("guard_rail enricher did not return expected content. Output: %v", resGuardRail)
+	foundGuardRail := false
+	for _, msg := range reqGuardRail.CurrentMessages {
+		if strings.Contains(msg.Text(), expectedGuardRailContent) {
+			foundGuardRail = true
+			break
+		}
+	}
+	if !foundGuardRail {
+		t.Errorf("guard_rail enricher did not return expected content. Output: %v", reqGuardRail.CurrentMessages)
 	}
 }
 

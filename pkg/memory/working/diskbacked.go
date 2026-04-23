@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sync"
 	"path/filepath"
+	"sync"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
 )
@@ -35,12 +35,11 @@ func NewDiskBacked(path string, processors ...Processor) (*DiskBacked, error) {
 	return db, nil
 }
 
-
 // Sessions returns a shallow copy of the state map for interrogation (e.g. CLI loading)
 func (db *DiskBacked) Sessions() map[string][]llm.Message {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	
+
 	res := make(map[string][]llm.Message, len(db.sessions))
 	for k, v := range db.sessions {
 		res[k] = v
@@ -62,15 +61,10 @@ func (db *DiskBacked) lazyLoadSession(sessionID string) {
 	db.sessions[sessionID] = msgs
 }
 
-// Inject retrieves the full message history for a given session.
-func (db *DiskBacked) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+// Read retrieves the full message history for a given session.
+func (db *DiskBacked) Read(ctx context.Context, sessionID string) ([]llm.Message, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-
-	sessionID, err := llm.SessionIDFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	db.lazyLoadSession(sessionID)
 
@@ -116,7 +110,7 @@ func (db *DiskBacked) save(sessionID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal disk memory: %w", err)
 	}
-	
+
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if dir != "" && dir != "." {

@@ -15,7 +15,7 @@ func (m *mockHITL) ApproveTool(ctx context.Context, req llm.ToolRequestPart) (bo
 	return m.approved, nil
 }
 
-func TestNewHITLMiddleware(t *testing.T) {
+func TestNewHITLHook(t *testing.T) {
 	tests := []struct {
 		name           string
 		namespace      string
@@ -88,16 +88,14 @@ func TestNewHITLMiddleware(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := &mockHITL{approved: tc.handlerApprove}
-			mw := llm.NewHITLMiddleware(handler, tc.policies, tc.unsafeAll)
+			hook := llm.NewHITLHook(handler, tc.policies, tc.unsafeAll)
 
 			// Setup context with namespace
 			ctx := context.WithValue(context.Background(), llm.ContextKeyNamespace, tc.namespace)
 
-			nextFunc := func(ctx context.Context) (interface{}, error) {
-				return "success", nil
-			}
-
-			_, err := mw(ctx, tc.req, nextFunc)
+			err := hook(ctx, llm.BeforeToolRequest{
+				ToolCall: tc.req,
+			})
 
 			if tc.expectErr && err == nil {
 				t.Fatalf("expected error, got nil")

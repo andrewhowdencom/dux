@@ -1,8 +1,6 @@
 package semantic
 
 import (
-	"context"
-
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/memory/semantic"
 )
@@ -30,12 +28,16 @@ func NewProvider(service *semantic.Service) *Provider {
 	return p
 }
 
-func (p *Provider) Inject(ctx context.Context, query llm.InjectQuery) ([]llm.Message, error) {
-	return nil, nil
-}
-
 func (p *Provider) Namespace() string {
 	return "semantic"
+}
+
+func (p *Provider) Tools() []llm.Tool {
+	var tools []llm.Tool
+	for _, t := range p.tools {
+		tools = append(tools, t)
+	}
+	return tools
 }
 
 func (p *Provider) GetTool(name string) (llm.Tool, bool) {

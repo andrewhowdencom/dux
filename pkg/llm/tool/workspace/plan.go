@@ -37,8 +37,14 @@ func (p *Provider) Namespace() string {
 	return "workspace_plans"
 }
 
-func (p *Provider) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
-	return nil, nil
+func (p *Provider) Tools() []llm.Tool {
+	return []llm.Tool{
+		&PlanCreateTool{},
+		&PlanReadTool{},
+		&PlanUpdateTool{},
+		&PlanListTool{},
+		&PlanApproveTool{},
+	}
 }
 
 func (p *Provider) GetTool(name string) (llm.Tool, bool) {

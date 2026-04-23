@@ -14,11 +14,9 @@ type HITLHandler interface {
 	ApproveTool(ctx context.Context, req ToolRequestPart) (bool, error)
 }
 
-// NewHITLMiddleware wraps an execution loop with a conditional prompt.
-// requiresSupervision flags each tool namespace individually. If a namespace is not mapped,
-// or is mapped to true/fails evaluation, the user must approve it.
-// If unsafeAllTools is true, all interactive prompts are bypassed cleanly.
-func NewHITLMiddleware(handler HITLHandler, requiresSupervision map[string]interface{}, unsafeAllTools bool) ToolMiddleware {
+// NewHITLHook returns a BeforeToolHook that conditionally requires human
+// approval before a tool is executed.
+func NewHITLHook(handler HITLHandler, requiresSupervision map[string]interface{}, unsafeAllTools bool) BeforeToolHook {
 	env, err := cel.NewEnv(
 		cel.Variable("tool_name", cel.StringType),
 		cel.Variable("namespace", cel.StringType),
@@ -45,16 +43,16 @@ func NewHITLMiddleware(handler HITLHandler, requiresSupervision map[string]inter
 		}
 	}
 
-	return func(ctx context.Context, req ToolRequestPart, next func(ctx context.Context) (interface{}, error)) (interface{}, error) {
+	return func(ctx context.Context, req BeforeToolRequest) error {
 		if unsafeAllTools {
-			return next(ctx)
+			return nil
 		}
 
 		namespace, _ := ctx.Value(ContextKeyNamespace).(string)
 
 		var needsSupervision bool
 		policy, exists := requiresSupervision[namespace]
-		
+
 		if !exists {
 			// Unmapped tools fallback to secure execution
 			needsSupervision = true
@@ -62,17 +60,17 @@ func NewHITLMiddleware(handler HITLHandler, requiresSupervision map[string]inter
 			if b, ok := policy.(bool); ok {
 				needsSupervision = b
 			} else if p, ok := programs[namespace]; ok {
-				argsMap := req.Args
+				argsMap := req.ToolCall.Args
 				if argsMap == nil {
 					argsMap = make(map[string]interface{})
 				}
-				
+
 				out, _, err := p.Eval(map[string]interface{}{
-					"tool_name": req.Name,
+					"tool_name": req.ToolCall.Name,
 					"namespace": namespace,
 					"args":      argsMap,
 				})
-				
+
 				if err != nil {
 					slog.Error("CEL evaluation failed, defaulting to supervision=true", "err", err)
 					needsSupervision = true
@@ -88,22 +86,22 @@ func NewHITLMiddleware(handler HITLHandler, requiresSupervision map[string]inter
 		}
 
 		if !needsSupervision {
-			return next(ctx)
+			return nil
 		}
 
 		if handler == nil {
-			return nil, fmt.Errorf("user denied tool execution: no interactive handler present to approve")
+			return fmt.Errorf("user denied tool execution: no interactive handler present to approve")
 		}
 
-		approved, err := handler.ApproveTool(ctx, req)
+		approved, err := handler.ApproveTool(ctx, req.ToolCall)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if !approved {
-			return nil, fmt.Errorf("user denied tool execution: please ask the user why they denied the tool and request follow-up instructions")
+			return fmt.Errorf("user denied tool execution: please ask the user why they denied the tool and request follow-up instructions")
 		}
 
-		return next(ctx)
+		return nil
 	}
 }

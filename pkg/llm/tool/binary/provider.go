@@ -26,8 +26,8 @@ func (p *binaryProvider) GetTool(name string) (llm.Tool, bool) {
 	return nil, false
 }
 
-func (p *binaryProvider) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
-	return nil, nil
+func (p *binaryProvider) Tools() []llm.Tool {
+	return []llm.Tool{p.tool}
 }
 
 type binaryTool struct {

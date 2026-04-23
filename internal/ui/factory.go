@@ -96,9 +96,9 @@ func NewProviderFromConfig(cfg config.InstanceConfig) (provider.Provider, error)
 	}
 }
 
-// NewEnrichersFromConfig builds an array of enrichers from raw agent configuration.
-func NewEnrichersFromConfig(cfgs []config.Enricher) ([]llm.Injector, error) {
-	var results []llm.Injector
+// NewEnrichersFromConfig builds an array of BeforeGenerate hooks from raw agent configuration.
+func NewEnrichersFromConfig(cfgs []config.Enricher) ([]llm.BeforeGenerateHook, error) {
+	var results []llm.BeforeGenerateHook
 
 	for _, c := range cfgs {
 		switch c.Type {
@@ -121,7 +121,7 @@ func NewEnrichersFromConfig(cfgs []config.Enricher) ([]llm.Injector, error) {
 
 // ResolverDependencies holds runtime state required by built-in tool resolvers.
 type ResolverDependencies struct {
-	GlobalMemory llm.Injector
+	GlobalMemory llm.History
 }
 
 // NewResolversFromConfig builds an array of tool resolvers from string representations.

@@ -83,29 +83,14 @@ func (r *MCPResolver) refreshCache(ctx context.Context) error {
 	return nil
 }
 
-// Inject returns the currently cached definitions wrapped in an llm.Message.
-func (r *MCPResolver) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var parts []llm.Part
-	for _, t := range r.tools {
-		parts = append(parts, t.Definition())
-	}
-
-	if len(parts) == 0 {
-		return nil, nil
-	}
-
-	return []llm.Message{{
-		Identity:   llm.Identity{Role: "system"},
-		Parts:      parts,
-		Volatility: llm.VolatilityHigh,
-	}}, nil
-}
-
 func (r *MCPResolver) Namespace() string {
 	return r.namespace
+}
+
+func (r *MCPResolver) Tools() []llm.Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.tools
 }
 
 func (r *MCPResolver) GetTool(name string) (llm.Tool, bool) {

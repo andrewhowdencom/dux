@@ -36,22 +36,11 @@ type mockResolver struct {
 	tools []llm.Tool
 }
 
-func (r *mockResolver) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
-	var parts []llm.Part
-	for _, t := range r.tools {
-		parts = append(parts, t.Definition())
-	}
-	if len(parts) == 0 {
-		return nil, nil
-	}
-	return []llm.Message{{
-		Identity:   llm.Identity{Role: "system"},
-		Parts:      parts,
-		Volatility: llm.VolatilityHigh,
-	}}, nil
-}
-
 func (r *mockResolver) Namespace() string { return "mock" }
+
+func (r *mockResolver) Tools() []llm.Tool {
+	return r.tools
+}
 
 func (r *mockResolver) GetTool(name string) (llm.Tool, bool) {
 	for _, t := range r.tools {
@@ -95,6 +84,12 @@ func (m *toolMockProvider) GenerateStream(ctx context.Context, messages []llm.Me
 					}
 				}
 			}
+			if resultStr == "" {
+				resultStr = "ERROR: no tool result found in messages"
+				for i, msg := range messages {
+					resultStr += fmt.Sprintf(" | msg%d role=%s parts=%d", i, msg.Identity.Role, len(msg.Parts))
+				}
+			}
 			outCh <- llm.TextPart(resultStr)
 		}
 	}()
@@ -113,21 +108,28 @@ func TestEngine_ToolExecution(t *testing.T) {
 
 	hist := &MemoryHistory{}
 
-	// A sample security middleware that intercepts a specific secret argument
-	middlewareTriggered := false
-	securityMW := func(ctx context.Context, req llm.ToolRequestPart, next func(context.Context) (interface{}, error)) (interface{}, error) {
-		middlewareTriggered = true
-		if req.Name == "forbidden_tool" {
-			return nil, fmt.Errorf("blocked by security policy")
+	// A sample BeforeTool hook that blocks a specific forbidden tool
+	hookTriggered := false
+	securityHook := func(ctx context.Context, req llm.BeforeToolRequest) error {
+		hookTriggered = true
+		if req.ToolCall.Name == "forbidden_tool" {
+			return fmt.Errorf("blocked by security policy")
 		}
-		return next(ctx)
+		return nil
 	}
 
 	engine := adapter.New(
 		adapter.WithWorkingMemory(hist),
 		adapter.WithProvider(provider),
 		adapter.WithResolver(resolver),
-		adapter.WithToolMiddleware(securityMW),
+		adapter.WithBeforeTool(securityHook),
+		adapter.WithBeforeGenerate(func(ctx context.Context, req *llm.BeforeGenerateRequest) error {
+			t.Logf("DEBUG BeforeGenerate: session=%s messages=%d", req.SessionID, len(req.CurrentMessages))
+			for i, m := range req.CurrentMessages {
+				t.Logf("  msg%d: role=%s parts=%d", i, m.Identity.Role, len(m.Parts))
+			}
+			return nil
+		}),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -163,8 +165,13 @@ func TestEngine_ToolExecution(t *testing.T) {
 		t.Errorf("expected 1 tool call to stream out, got %d", toolCalls)
 	}
 
-	if !middlewareTriggered {
-		t.Errorf("expected middleware to be triggered")
+	if !hookTriggered {
+		t.Errorf("expected BeforeTool hook to be triggered")
+	}
+
+	// Debug: print history contents after stream
+	for i, msg := range hist.messages["123"] {
+		t.Logf("HISTORY msg%d: role=%s parts=%d", i, msg.Identity.Role, len(msg.Parts))
 	}
 
 	// Ensure that the final response matched the recursive executed tool answer
@@ -177,5 +184,64 @@ func TestEngine_ToolExecution(t *testing.T) {
 
 	if !foundAnswer {
 		t.Errorf("Did not find the tool result piped back through the engine. Got texts: %v", texts)
+	}
+}
+
+// TestEngine_BeforeToolBlocksTool verifies that a BeforeTool hook returning
+// an error produces a synthetic ToolResultPart{IsError:true} fed back to the LLM.
+func TestEngine_BeforeToolBlocksTool(t *testing.T) {
+	provider := &toolMockProvider{}
+	tool := &mockTool{names: []string{"mock_tool"}}
+	resolver := &mockResolver{tools: []llm.Tool{tool}}
+
+	hist := &MemoryHistory{}
+
+	blockingHook := func(ctx context.Context, req llm.BeforeToolRequest) error {
+		return fmt.Errorf("tool blocked: %s", req.ToolCall.Name)
+	}
+
+	engine := adapter.New(
+		adapter.WithWorkingMemory(hist),
+		adapter.WithProvider(provider),
+		adapter.WithResolver(resolver),
+		adapter.WithBeforeTool(blockingHook),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stream, err := engine.Stream(llm.WithSessionID(ctx, "block-test"), llm.Message{
+		Identity:  llm.Identity{Role: "user"},
+		Parts:     []llm.Part{llm.TextPart("trigger")},
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var toolResults int
+	for msg := range stream {
+		for _, p := range msg.Parts {
+			switch p := p.(type) {
+			case llm.TextPart:
+				// ignore text parts in this test
+			case llm.ToolResultPart:
+				toolResults++
+				if !p.IsError {
+					t.Errorf("expected blocked tool result to have IsError=true, got false")
+				}
+				if p.Result != "tool blocked: mock_tool" {
+					t.Errorf("expected blocked tool result message, got: %v", p.Result)
+				}
+			}
+		}
+	}
+
+	if toolResults != 1 {
+		t.Errorf("expected 1 synthetic tool result, got %d", toolResults)
+	}
+
+	if provider.callCount != 2 {
+		t.Errorf("expected provider to be called 2 times (initial + retry with error), got %d", provider.callCount)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/spf13/viper"
@@ -51,7 +50,7 @@ func NewEngine(
 
 	if agt != nil && agt.Workflow != nil {
 		var selectedCfg *config.InstanceConfig
-		memories := make(map[string]llm.Injector)
+		memories := make(map[string]llm.History)
 
 		var effectiveHistoryPath string
 		if viper.GetString("memory.type") == "disk" {
@@ -166,8 +165,8 @@ func compileOptions(
 	contextCfg *config.AgentContext,
 	hitl llm.HITLHandler,
 	unsafeAllTools bool,
-	mem llm.Injector,
-	globalMem llm.Injector,
+	mem llm.History,
+	globalMem llm.History,
 	transitionTools []llm.Tool,
 ) ([]adapter.Option, *config.InstanceConfig, func(), error) {
 	var finalProvider = localProviderID
@@ -176,7 +175,7 @@ func compileOptions(
 	}
 
 	var sysPrompt string
-	var enrichers []llm.Injector
+	var enrichers []llm.BeforeGenerateHook
 	var resolvers []llm.ToolProvider
 
 	globalTools := config.LoadGlobalTools()
@@ -208,7 +207,6 @@ func compileOptions(
 	var nativeToolNames []string
 	var mcpConfigs []config.ToolConfig
 	var binaryConfigs []config.ToolConfig
-	timeouts := make(map[string]time.Duration)
 
 	for name, t := range toolMap {
 		if !t.Enabled {
@@ -223,14 +221,6 @@ func compileOptions(
 			} else {
 				requiresSupervision[name] = true
 			}
-		}
-
-		if t.TimeoutSeconds != nil {
-			timeouts[name] = time.Duration(*t.TimeoutSeconds) * time.Second
-		} else if t.MCP != nil {
-			timeouts[name] = 300 * time.Second
-		} else {
-			timeouts[name] = 5 * time.Second
 		}
 
 		if t.MCP != nil {
@@ -291,16 +281,14 @@ func compileOptions(
 		}
 	}
 
-	hitlMiddleware := llm.NewHITLMiddleware(hitl, requiresSupervision, unsafeAllTools)
-	timeoutMiddleware := llm.NewTimeoutMiddleware(timeouts, 5*time.Second)
+	hitlHook := llm.NewHITLHook(hitl, requiresSupervision, unsafeAllTools)
 
 	opts := []adapter.Option{
 		adapter.WithProvider(prv),
 		adapter.WithWorkingMemory(mem),
 		adapter.WithSystemPrompt(sysPrompt),
 		adapter.WithEnrichers(enrichers),
-		adapter.WithToolMiddleware(hitlMiddleware),
-		adapter.WithToolMiddleware(timeoutMiddleware),
+		adapter.WithBeforeTool(hitlHook),
 	}
 	for _, r := range resolvers {
 		opts = append(opts, adapter.WithResolver(r))

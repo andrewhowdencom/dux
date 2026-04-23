@@ -14,9 +14,9 @@ type MemoryHistory struct {
 	messages map[string][]llm.Message
 }
 
-func (m *MemoryHistory) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
-	sessionID, _ := llm.SessionIDFromContext(ctx)
-	return m.messages[sessionID], nil
+func (m *MemoryHistory) Read(ctx context.Context, sessionID string) ([]llm.Message, error) {
+	msgs := m.messages[sessionID]
+	return msgs, nil
 }
 
 func (m *MemoryHistory) Append(ctx context.Context, sessionID string, msg llm.Message) error {
@@ -59,7 +59,7 @@ func TestEngine_SinglePass(t *testing.T) {
 	}
 
 	engine := adapter.New(
-		adapter.WithWorkingMemory(hist),
+		adapter.WithHistory(hist),
 		adapter.WithProvider(provider),
 	)
 

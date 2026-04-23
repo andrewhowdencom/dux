@@ -3,33 +3,30 @@ package adapter
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/enrich"
 	"github.com/andrewhowdencom/dux/pkg/llm/provider"
+	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
 // Engine orchestrates the convergence loop between the LLM provider,
 // tools, and conversation history.
 type Engine struct {
-	injectors    []llm.Injector
-	provider     provider.Generator
-	middlewares  []llm.ToolMiddleware
+	provider   provider.Generator
+	history    llm.History
+	resolvers  []llm.ToolProvider
+
+	beforeStart    []llm.BeforeStartHook
+	beforeGenerate []llm.BeforeGenerateHook
+	beforeTool     []llm.BeforeToolHook
+	afterTool      []llm.AfterToolHook
+	afterComplete  []llm.AfterCompleteHook
 }
 
 // Option configures the Engine via the functional options pattern.
 type Option func(*Engine)
-
-func WithInjector(i llm.Injector) Option {
-	return func(e *Engine) {
-		e.injectors = append(e.injectors, i)
-	}
-}
-
-// WithWorkingMemory sets the engine's working memory backend.
-func WithWorkingMemory(h llm.Injector) Option {
-	return WithInjector(h)
-}
 
 // WithProvider sets the core LLM inference provider.
 func WithProvider(p provider.Generator) Option {
@@ -38,27 +35,75 @@ func WithProvider(p provider.Generator) Option {
 	}
 }
 
+// WithHistory sets the engine's history backend.
+func WithHistory(h llm.History) Option {
+	return func(e *Engine) {
+		e.history = h
+	}
+}
+
+// WithWorkingMemory sets the engine's working memory backend.
+// It automatically registers a BeforeGenerate hook to inject conversation history.
+func WithWorkingMemory(mem working.WorkingMemory) Option {
+	return func(e *Engine) {
+		e.history = mem
+		e.beforeGenerate = append(e.beforeGenerate, working.NewHistoryHook(mem))
+	}
+}
+
 // WithSystemPrompt sets an overarching system prompt injected dynamically at stream time.
 func WithSystemPrompt(prompt string) Option {
-	return WithInjector(enrich.NewPrompt(prompt))
+	return func(e *Engine) {
+		e.beforeGenerate = append(e.beforeGenerate, enrich.NewPrompt(prompt))
+	}
 }
 
 // WithEnrichers sets the dynamic context enrichers to be evaluated before streaming.
-func WithEnrichers(enrichers []llm.Injector) Option {
+func WithEnrichers(enrichers []llm.BeforeGenerateHook) Option {
 	return func(e *Engine) {
-		e.injectors = append(e.injectors, enrichers...)
+		e.beforeGenerate = append(e.beforeGenerate, enrichers...)
 	}
 }
 
 // WithResolver adds a dynamic tool resolution strategy.
 func WithResolver(r llm.ToolProvider) Option {
-	return WithInjector(r)
+	return func(e *Engine) {
+		e.resolvers = append(e.resolvers, r)
+	}
 }
 
-// WithToolMiddleware inserts an interceptor into the tool execution chain.
-func WithToolMiddleware(mw llm.ToolMiddleware) Option {
+// WithBeforeStart registers a hook that fires before the session starts.
+func WithBeforeStart(h llm.BeforeStartHook) Option {
 	return func(e *Engine) {
-		e.middlewares = append(e.middlewares, mw)
+		e.beforeStart = append(e.beforeStart, h)
+	}
+}
+
+// WithBeforeGenerate registers a hook that fires before each LLM call.
+func WithBeforeGenerate(h llm.BeforeGenerateHook) Option {
+	return func(e *Engine) {
+		e.beforeGenerate = append(e.beforeGenerate, h)
+	}
+}
+
+// WithBeforeTool registers a hook that fires before each tool execution.
+func WithBeforeTool(h llm.BeforeToolHook) Option {
+	return func(e *Engine) {
+		e.beforeTool = append(e.beforeTool, h)
+	}
+}
+
+// WithAfterTool registers a hook that fires after each tool execution.
+func WithAfterTool(h llm.AfterToolHook) Option {
+	return func(e *Engine) {
+		e.afterTool = append(e.afterTool, h)
+	}
+}
+
+// WithAfterComplete registers a hook that fires when the session completes.
+func WithAfterComplete(h llm.AfterCompleteHook) Option {
+	return func(e *Engine) {
+		e.afterComplete = append(e.afterComplete, h)
 	}
 }
 
@@ -79,39 +124,49 @@ func (e *Engine) UpdateOptions(opts ...Option) {
 	}
 }
 
-// Stream executes the recursive convergence loop natively incorporating tools and middleware constraints.
+// Stream executes the recursive convergence loop natively incorporating tools and hooks.
 func (e *Engine) Stream(ctx context.Context, inputMessage llm.Message) (<-chan llm.Message, error) {
 	out := make(chan llm.Message)
-
-	// Since we no longer explicitly track history here, history persistence is up to the caller
-	// or must be explicitly captured. For now, we seed the recursion loop with the initial message.
 
 	go func() {
 		defer close(out)
 
-		q := llm.InjectQuery{
-			Text:      inputMessage.Text(),
+		sessionID, _ := llm.SessionIDFromContext(ctx)
+
+		// BeforeStart: allow hooks to validate or enrich the session
+		if len(e.beforeStart) > 0 {
+			for _, h := range e.beforeStart {
+				if err := h(ctx, llm.BeforeStartRequest{
+					SessionID:  sessionID,
+					InitialMsg: inputMessage,
+				}); err != nil {
+					e.sendError(ctx, out, err, sessionID)
+					return
+				}
+			}
+		}
+
+		// Seed the initial user message into history
+		if e.history != nil {
+			if err := e.history.Append(ctx, sessionID, inputMessage); err != nil {
+				e.sendError(ctx, out, err, sessionID)
+				return
+			}
 		}
 
 		// Initial recursive loop trigger (no tool results yet)
-		e.recursiveStream(ctx, q, inputMessage, out, nil)
+		e.recursiveStream(ctx, sessionID, inputMessage, out, nil, nil)
 	}()
 
 	return out, nil
 }
 
 // recursiveStream fetches history, injects definitions, streams from the provider, handles tools, and restarts if necessary.
-func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initialInput llm.Message, out chan<- llm.Message, pendingResults []llm.ToolResultPart) {
-	if len(pendingResults) > 0 {
-		q.PendingToolResults = pendingResults
-	} else {
-		q.PendingToolResults = nil
-	}
-
-	msgs, err := e.buildPromptMessages(ctx, q, initialInput)
+func (e *Engine) recursiveStream(ctx context.Context, sessionID string, initialInput llm.Message, out chan<- llm.Message, pendingResults []llm.ToolResultPart, toolHistory []llm.ToolExecutionRecord) {
+	// Build prompt messages via BeforeGenerate hooks
+	msgs, err := e.buildPromptMessages(ctx, sessionID, pendingResults)
 	if err != nil {
-		sessID, _ := llm.SessionIDFromContext(ctx) // fallback for error sending
-		e.sendError(ctx, out, err, sessID)
+		e.sendError(ctx, out, err, sessionID)
 		return
 	}
 
@@ -119,11 +174,6 @@ func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initial
 		return
 	}
 
-	sessionID, err := llm.SessionIDFromContext(ctx)
-	if err != nil {
-		e.sendError(ctx, out, err, "")
-		return
-	}
 	partStream, err := e.provider.GenerateStream(ctx, msgs)
 	if err != nil {
 		e.sendError(ctx, out, err, sessionID)
@@ -143,7 +193,7 @@ func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initial
 
 		// Accumulate for history
 		accumulatedParts = append(accumulatedParts, part)
-		
+
 		e.safeSend(ctx, out, msg)
 
 		if tr, ok := part.(llm.ToolRequestPart); ok {
@@ -151,191 +201,266 @@ func (e *Engine) recursiveStream(ctx context.Context, q llm.InjectQuery, initial
 		}
 	}
 
-	// We might need an explicit way for history to capture these!
-	// For now, if an injector implements workmem.WorkingMemory, we can trigger append.
-	// But history should be isolated. This will need a callback or specific WorkingMemory injector interface.
-	for _, inj := range e.injectors {
-		if appendable, ok := inj.(interface{
-			Append(ctx context.Context, sessionID string, msg llm.Message) error
-		}); ok && len(accumulatedParts) > 0 {
-			bundledMsg := llm.Message{
-				SessionID: sessionID,
-				Identity:  llm.Identity{Role: "assistant"},
-				Parts:     accumulatedParts,
-			}
-			if err := appendable.Append(ctx, sessionID, bundledMsg); err != nil {
-				e.sendError(ctx, out, err, sessionID)
-				return
-			}
+	// Append assistant message to history
+	if e.history != nil && len(accumulatedParts) > 0 {
+		bundledMsg := llm.Message{
+			SessionID: sessionID,
+			Identity:  llm.Identity{Role: "assistant"},
+			Parts:     accumulatedParts,
+		}
+		if err := e.history.Append(ctx, sessionID, bundledMsg); err != nil {
+			e.sendError(ctx, out, err, sessionID)
+			return
 		}
 	}
 
 	// Executed after the provider closes its stream slice
-	if len(pendingCalls) > 0 {
-		var results []llm.ToolResultPart
-		var transition *llm.TransitionSignalPart
-
-		for _, tc := range pendingCalls {
-			resPart := e.executeToolWithMiddleware(ctx, tc)
-			if trans, ok := resPart.(llm.TransitionSignalPart); ok {
-				transition = &trans
-				
-				// Crucial: The LLM Provider expects a graph constraint where every ToolRequest is followed by a ToolResult.
-				// Even though we are breaking the runloop to hot-swap the engine, we MUST inject a pseudo-result 
-				// bridging the old state so the new Engine does not instantly drop the 'corrupted' history matrix.
-				results = append(results, llm.ToolResultPart{
-					ToolID: tc.ToolID,
-					Name:   tc.Name,
-					Result: "State Machine Transition successfully hooked.",
-				})
-			} else if tr, ok := resPart.(llm.ToolResultPart); ok {
-				results = append(results, tr)
-			}
-		}
-
-		if transition != nil {
-			// Append the dummy results to history safely before breaking out.
-			// This closes the open function signatures inside the conversational buffer graph!
-			toolMsg := llm.Message{
-				SessionID: sessionID,
-				Identity:  llm.Identity{Role: "tool"},
-			}
-			for _, pr := range results {
-				toolMsg.Parts = append(toolMsg.Parts, pr)
-			}
-			for _, inj := range e.injectors {
-				if appendable, ok := inj.(interface{
-					Append(ctx context.Context, sessionID string, msg llm.Message) error
-				}); ok {
-					_ = appendable.Append(ctx, sessionID, toolMsg)
-				}
-			}
-
-			transMsg := llm.Message{
-				SessionID: sessionID,
-				Identity:  llm.Identity{Role: "system"},
-				Parts:     []llm.Part{*transition},
-			}
-			e.safeSend(ctx, out, transMsg)
-			return // gracefully break the recursion loop
-		}
-
-		// Standard tool execution (no transitions)
-		toolMsg := llm.Message{
+	if len(pendingCalls) == 0 {
+		// No more tool calls — session is complete
+		finalMsg := llm.Message{
 			SessionID: sessionID,
-			Identity:  llm.Identity{Role: "tool"},
+			Identity:  llm.Identity{Role: "assistant"},
+			Parts:     accumulatedParts,
 		}
-		for _, pr := range results {
-			toolMsg.Parts = append(toolMsg.Parts, pr)
-		}
-		e.safeSend(ctx, out, toolMsg)
-
-		for _, inj := range e.injectors {
-			if appendable, ok := inj.(interface{
-				Append(ctx context.Context, sessionID string, msg llm.Message) error
-			}); ok {
-				if err := appendable.Append(ctx, sessionID, toolMsg); err != nil {
+		if len(e.afterComplete) > 0 {
+			for _, h := range e.afterComplete {
+				if err := h(ctx, llm.AfterCompleteRequest{
+					SessionID:    sessionID,
+					FinalMessage: finalMsg,
+					ToolHistory:  toolHistory,
+				}); err != nil {
 					e.sendError(ctx, out, err, sessionID)
 					return
 				}
 			}
 		}
-
-		// Re-enter the loop with the executed results
-		e.recursiveStream(ctx, q, initialInput, out, results)
+		return
 	}
+
+	var results []llm.ToolResultPart
+	var transition *llm.TransitionSignalPart
+
+	for callIndex, tc := range pendingCalls {
+		resPart := e.executeTool(ctx, sessionID, tc, callIndex)
+		if trans, ok := resPart.(llm.TransitionSignalPart); ok {
+			transition = &trans
+
+			// Crucial: The LLM Provider expects a graph constraint where every ToolRequest is followed by a ToolResult.
+			// Even though we are breaking the runloop to hot-swap the engine, we MUST inject a pseudo-result
+			// bridging the old state so the new Engine does not instantly drop the 'corrupted' history matrix.
+			results = append(results, llm.ToolResultPart{
+				ToolID: tc.ToolID,
+				Name:   tc.Name,
+				Result: "State Machine Transition successfully hooked.",
+			})
+		} else if tr, ok := resPart.(llm.ToolResultPart); ok {
+			results = append(results, tr)
+		}
+	}
+
+	// Build tool message for history
+	toolMsg := llm.Message{
+		SessionID: sessionID,
+		Identity:  llm.Identity{Role: "tool"},
+	}
+	for _, pr := range results {
+		toolMsg.Parts = append(toolMsg.Parts, pr)
+	}
+
+	if e.history != nil {
+		if err := e.history.Append(ctx, sessionID, toolMsg); err != nil {
+			e.sendError(ctx, out, err, sessionID)
+			return
+		}
+	}
+
+	if transition != nil {
+		transMsg := llm.Message{
+			SessionID: sessionID,
+			Identity:  llm.Identity{Role: "system"},
+			Parts:     []llm.Part{*transition},
+		}
+		e.safeSend(ctx, out, transMsg)
+		return // gracefully break the recursion loop
+	}
+
+	e.safeSend(ctx, out, toolMsg)
+
+	// Update tool history and recurse
+	newHistory := toolHistory
+	for i, tc := range pendingCalls {
+		newHistory = append(newHistory, llm.ToolExecutionRecord{
+			ToolCall: tc,
+			Result:   results[i],
+		})
+	}
+
+	e.recursiveStream(ctx, sessionID, initialInput, out, results, newHistory)
 }
 
-// buildPromptMessages pieces together system prompts, enrichers, tool schemas, and history.
-func (e *Engine) buildPromptMessages(ctx context.Context, q llm.InjectQuery, initialInput llm.Message) ([]llm.Message, error) {
-	var msgs []llm.Message
-	
-	// Ensure initial user input hits history appending before returning prompt messages!
-	// Only do this on the very first turn! (len(q.PendingToolResults) == 0)
-	if len(q.PendingToolResults) == 0 {
-		sessionID, err := llm.SessionIDFromContext(ctx)
-		if err != nil {
+// buildPromptMessages runs BeforeGenerate hooks serially, then injects tool
+// definitions, and finally sorts by Volatility.
+func (e *Engine) buildPromptMessages(ctx context.Context, sessionID string, pendingResults []llm.ToolResultPart) ([]llm.Message, error) {
+	req := llm.BeforeGenerateRequest{
+		SessionID:      sessionID,
+		PendingResults: pendingResults,
+	}
+
+	// Run BeforeGenerate hooks serially; each may mutate CurrentMessages
+	for _, h := range e.beforeGenerate {
+		if err := h(ctx, &req); err != nil {
 			return nil, err
 		}
-		for _, inj := range e.injectors {
-			if appendable, ok := inj.(interface{
-				Append(ctx context.Context, sessionID string, msg llm.Message) error
-			}); ok {
-				if err := appendable.Append(ctx, sessionID, initialInput); err != nil {
-					return nil, err
-				}
+	}
+
+	// Inject tool definitions from resolvers
+	if len(e.resolvers) > 0 {
+		var toolParts []llm.Part
+		for _, r := range e.resolvers {
+			// This is a simplified approach: we need to iterate over all tools in each resolver.
+			// However, ToolProvider only has GetTool(name). We need a way to list tools.
+			// For now, we'll use a helper that collects definitions.
+			defs := collectToolDefinitions(r)
+			for _, def := range defs {
+				toolParts = append(toolParts, def)
 			}
 		}
-	}
-
-	for _, inj := range e.injectors {
-		injMsgs, err := inj.Inject(ctx, q)
-		if err != nil {
-			return nil, err
+		if len(toolParts) > 0 {
+			req.CurrentMessages = append(req.CurrentMessages, llm.Message{
+				Identity:   llm.Identity{Role: "system"},
+				Parts:      toolParts,
+				Volatility: llm.VolatilityHigh,
+			})
 		}
-		msgs = append(msgs, injMsgs...)
 	}
 
-	// Then, sort by Volatility Ascending (Static=0 first, High=10 last)
-	sort.SliceStable(msgs, func(i, j int) bool {
-		return msgs[i].Volatility < msgs[j].Volatility
+	// Sort by Volatility Ascending (Static=0 first, High=10 last)
+	sort.SliceStable(req.CurrentMessages, func(i, j int) bool {
+		return req.CurrentMessages[i].Volatility < req.CurrentMessages[j].Volatility
 	})
 
-	return msgs, nil
+	return req.CurrentMessages, nil
 }
 
-func (e *Engine) executeToolWithMiddleware(ctx context.Context, req llm.ToolRequestPart) llm.Part {
+// collectToolDefinitions gathers all tool definitions from a ToolProvider.
+func collectToolDefinitions(r llm.ToolProvider) []llm.ToolDefinitionPart {
+	var defs []llm.ToolDefinitionPart
+	for _, t := range r.Tools() {
+		defs = append(defs, t.Definition())
+	}
+	return defs
+}
+
+func (e *Engine) executeTool(ctx context.Context, sessionID string, req llm.ToolRequestPart, callIndex int) llm.Part {
 	resultPart := llm.ToolResultPart{
 		ToolID: req.ToolID,
 		Name:   req.Name,
 	}
 
+	// BeforeTool hooks
+	if len(e.beforeTool) > 0 {
+		for _, h := range e.beforeTool {
+			if err := h(ctx, llm.BeforeToolRequest{
+				SessionID: sessionID,
+				ToolCall:  req,
+				CallIndex: callIndex,
+			}); err != nil {
+				resultPart.Result = err.Error()
+				resultPart.IsError = true
+
+				// AfterTool: notify observers of the blocked tool
+				if len(e.afterTool) > 0 {
+					for _, ah := range e.afterTool {
+						_ = ah(ctx, llm.AfterToolRequest{
+							SessionID: sessionID,
+							ToolCall:  req,
+							Result:    resultPart,
+							Error:     err,
+						})
+					}
+				}
+				return resultPart
+			}
+		}
+	}
+
 	var targetTool llm.Tool
 	var namespace string
-	// Search through ToolProviders
-	for _, inj := range e.injectors {
-		if tp, ok := inj.(llm.ToolProvider); ok {
-			if t, found := tp.GetTool(req.Name); found {
-				targetTool = t
-				namespace = tp.Namespace()
-				break
-			}
+	for _, r := range e.resolvers {
+		if t, found := r.GetTool(req.Name); found {
+			targetTool = t
+			namespace = r.Namespace()
+			break
 		}
 	}
 
 	if targetTool == nil {
 		resultPart.Result = "Error: Tool not found"
 		resultPart.IsError = true
+
+		if len(e.afterTool) > 0 {
+			for _, h := range e.afterTool {
+				_ = h(ctx, llm.AfterToolRequest{
+					SessionID: sessionID,
+					ToolCall:  req,
+					Result:    resultPart,
+				})
+			}
+		}
 		return resultPart
 	}
 
 	evalCtx := context.WithValue(ctx, llm.ContextKeyNamespace, namespace)
 
-	// Build the middleware execution chain backwards
-	executionFunc := func(c context.Context) (interface{}, error) {
-		return targetTool.Execute(c, req.Args)
-	}
+	start := time.Now()
+	res, err := targetTool.Execute(evalCtx, req.Args)
+	duration := time.Since(start)
 
-	for i := len(e.middlewares) - 1; i >= 0; i-- {
-		mw := e.middlewares[i]
-		next := executionFunc
-		executionFunc = func(c context.Context) (interface{}, error) {
-			return mw(c, req, next)
-		}
-	}
-
-	res, err := executionFunc(evalCtx)
 	if err != nil {
 		resultPart.Result = err.Error()
 		resultPart.IsError = true
 	} else {
 		if transitionObj, ok := res.(llm.TransitionSignalPart); ok {
+			// AfterTool for transitions
+			if len(e.afterTool) > 0 {
+				for _, h := range e.afterTool {
+					_ = h(ctx, llm.AfterToolRequest{
+						SessionID: sessionID,
+						ToolCall:  req,
+						Result:    resultPart,
+						Duration:  duration,
+					})
+				}
+			}
 			return transitionObj
 		}
 		if transitionPtr, ok := res.(*llm.TransitionSignalPart); ok {
+			if len(e.afterTool) > 0 {
+				for _, h := range e.afterTool {
+					_ = h(ctx, llm.AfterToolRequest{
+						SessionID: sessionID,
+						ToolCall:  req,
+						Result:    resultPart,
+						Duration:  duration,
+					})
+				}
+			}
 			return *transitionPtr
 		}
 		resultPart.Result = res
+	}
+
+	// AfterTool hooks
+	if len(e.afterTool) > 0 {
+		for _, h := range e.afterTool {
+			_ = h(ctx, llm.AfterToolRequest{
+				SessionID: sessionID,
+				ToolCall:  req,
+				Result:    resultPart,
+				Duration:  duration,
+				Error:     err,
+			})
+		}
 	}
 
 	return resultPart

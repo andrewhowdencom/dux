@@ -22,15 +22,10 @@ func NewInMemory(processors ...Processor) *InMemory {
 	}
 }
 
-// Inject retrieves the full message history for a given session.
-func (m *InMemory) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message, error) {
+// Read retrieves the full message history for a given session.
+func (m *InMemory) Read(ctx context.Context, sessionID string) ([]llm.Message, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
-	sessionID, err := llm.SessionIDFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	rawMessages := m.sessions[sessionID]
 	messages := make([]llm.Message, len(rawMessages))
@@ -38,7 +33,7 @@ func (m *InMemory) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message
 		msg.Volatility = llm.VolatilityHigh
 		messages[i] = msg
 	}
-	
+
 	return messages, nil
 }
 
@@ -46,7 +41,7 @@ func (m *InMemory) Inject(ctx context.Context, q llm.InjectQuery) ([]llm.Message
 func (m *InMemory) Append(ctx context.Context, sessionID string, msg llm.Message) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	msgs := append(m.sessions[sessionID], msg)
 
 	// Execute processing pipeline (Consolidators -> Compactors)

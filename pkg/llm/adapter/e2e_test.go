@@ -28,10 +28,10 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 	// 3. Initialize the Engine using Variadic Options
 	engine := adapter.New(
 		adapter.WithProvider(prv),
-		adapter.WithWorkingMemory(memHistory),
+		adapter.WithHistory(memHistory),
 		adapter.WithSystemPrompt("You are a helpful agent testing programmatic initialization."),
 		adapter.WithEnrichers(
-			[]llm.Injector{
+			[]llm.BeforeGenerateHook{
 				enrich.NewTime(),
 				enrich.NewOS(),
 			},
@@ -71,7 +71,7 @@ func TestEngineE2EProgrammaticGo(t *testing.T) {
 	// 6. Assert history captured correctly
 	// Note: System prompts and Enrichments are mapped onto the `sessionID` invisibly at initialization/execution.
 	// Therefore, the persistent history should contain User Msg -> Assistant Output
-	storedMsgs, err := memHistory.Inject(llm.WithSessionID(ctx, sessionID), llm.InjectQuery{})
+	storedMsgs, err := memHistory.Read(llm.WithSessionID(ctx, sessionID), sessionID)
 	if err != nil {
 		t.Fatalf("failed fetching history: %v", err)
 	}

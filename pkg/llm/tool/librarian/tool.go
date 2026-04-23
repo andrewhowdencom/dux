@@ -11,12 +11,12 @@ import (
 
 // Provider implements llm.ToolProvider for context discovery tools.
 type Provider struct {
-	globalMem llm.Injector
+	globalMem llm.History
 	tools     map[string]llm.Tool
 }
 
 // NewProvider creates a new context discovery provider with read_working_memory.
-func NewProvider(globalMem llm.Injector) *Provider {
+func NewProvider(globalMem llm.History) *Provider {
 	p := &Provider{
 		globalMem: globalMem,
 		tools:     make(map[string]llm.Tool),
@@ -39,7 +39,11 @@ func NewProvider(globalMem llm.Injector) *Provider {
 			}
 
 			// Perform lookup
-			msgs, err := p.globalMem.Inject(ctx, llm.InjectQuery{})
+			sessionID, err := llm.SessionIDFromContext(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read session ID: %w", err)
+			}
+			msgs, err := p.globalMem.Read(ctx, sessionID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read global memory: %w", err)
 			}
@@ -71,14 +75,17 @@ func NewProvider(globalMem llm.Injector) *Provider {
 	return p
 }
 
-// Inject implements llm.Injector
-func (p *Provider) Inject(ctx context.Context, query llm.InjectQuery) ([]llm.Message, error) {
-	return nil, nil
-}
-
 // Namespace implements llm.ToolProvider
 func (p *Provider) Namespace() string {
 	return "librarian"
+}
+
+func (p *Provider) Tools() []llm.Tool {
+	var tools []llm.Tool
+	for _, t := range p.tools {
+		tools = append(tools, t)
+	}
+	return tools
 }
 
 // GetTool implements llm.ToolProvider

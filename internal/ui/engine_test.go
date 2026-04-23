@@ -39,43 +39,30 @@ func TestTransitionToolsBypassHITL(t *testing.T) {
 		}
 	}
 
-	// Create middleware
+	// Create hook
 	handler := &mockHITLHandler{}
-	middleware := llm.NewHITLMiddleware(handler, requiresSupervision, false)
+	hook := llm.NewHITLHook(handler, requiresSupervision, false)
 
 	// Create a mock tool request for a transition tool
-	req := llm.ToolRequestPart{
-		ToolID: "test-id",
-		Name:   "switch_to_planning",
-		Args:   map[string]interface{}{"reason": "test"},
+	req := llm.BeforeToolRequest{
+		ToolCall: llm.ToolRequestPart{
+			ToolID: "test-id",
+			Name:   "switch_to_planning",
+			Args:   map[string]interface{}{"reason": "test"},
+		},
 	}
 
-	// Create a mock next function
-	nextCalled := false
-	next := func(ctx context.Context) (interface{}, error) {
-		nextCalled = true
-		return "success", nil
-	}
-
-	// Execute middleware with transitions namespace
+	// Execute hook with transitions namespace
 	ctx := context.WithValue(context.Background(), llm.ContextKeyNamespace, "transitions")
-	result, err := middleware(ctx, req, next)
+	err := hook(ctx, req)
 
 	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	if !nextCalled {
-		t.Fatal("Expected next function to be called (HITL bypassed), but it wasn't")
-	}
-
 	if handler.approveCount > 0 {
 		t.Fatalf("Expected HITL to be bypassed (ApproveTool not called), but it was called %d times", handler.approveCount)
-	}
-
-	if result != "success" {
-		t.Fatalf("Expected result 'success', got: %v", result)
 	}
 }
 
@@ -84,43 +71,30 @@ func TestTransitionToolsCanRequireHITL(t *testing.T) {
 	requiresSupervision := make(map[string]interface{})
 	requiresSupervision["transitions"] = true // User override
 
-	// Create middleware
+	// Create hook
 	handler := &mockHITLHandler{}
-	middleware := llm.NewHITLMiddleware(handler, requiresSupervision, false)
+	hook := llm.NewHITLHook(handler, requiresSupervision, false)
 
 	// Create a mock tool request
-	req := llm.ToolRequestPart{
-		ToolID: "test-id",
-		Name:   "switch_to_planning",
-		Args:   map[string]interface{}{"reason": "test"},
+	req := llm.BeforeToolRequest{
+		ToolCall: llm.ToolRequestPart{
+			ToolID: "test-id",
+			Name:   "switch_to_planning",
+			Args:   map[string]interface{}{"reason": "test"},
+		},
 	}
 
-	// Create a mock next function
-	nextCalled := false
-	next := func(ctx context.Context) (interface{}, error) {
-		nextCalled = true
-		return "success", nil
-	}
-
-	// Execute middleware with transitions namespace
+	// Execute hook with transitions namespace
 	ctx := context.WithValue(context.Background(), llm.ContextKeyNamespace, "transitions")
-	result, err := middleware(ctx, req, next)
+	err := hook(ctx, req)
 
 	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	if !nextCalled {
-		t.Fatal("Expected next function to be called after approval")
-	}
-
 	if handler.approveCount != 1 {
 		t.Fatalf("Expected ApproveTool to be called once, but it was called %d times", handler.approveCount)
-	}
-
-	if result != "success" {
-		t.Fatalf("Expected result 'success', got: %v", result)
 	}
 }
 
@@ -188,17 +162,17 @@ func TestNamespacePropagationEndToEnd(t *testing.T) {
 
 	handler := &mockHITLHandler{}
 
-	// Create a channel to capture the namespace from middleware
+	// Create a channel to capture the namespace from hook
 	namespaceChan := make(chan string, 1)
 
-	// Create a custom middleware that captures the namespace
-	captureMiddleware := func(ctx context.Context, req llm.ToolRequestPart, next func(ctx context.Context) (interface{}, error)) (interface{}, error) {
+	// Create a custom BeforeTool hook that captures the namespace
+	captureHook := func(ctx context.Context, req llm.BeforeToolRequest) error {
 		ns, _ := ctx.Value(llm.ContextKeyNamespace).(string)
 		select {
 		case namespaceChan <- ns:
 		default:
 		}
-		return next(ctx)
+		return nil
 	}
 
 	// Call compileOptions
@@ -210,8 +184,8 @@ func TestNamespacePropagationEndToEnd(t *testing.T) {
 		defer cleanup()
 	}
 
-	// Add our capture middleware to the options
-	opts = append(opts, adapter.WithToolMiddleware(captureMiddleware))
+	// Add our capture hook to the options
+	opts = append(opts, adapter.WithBeforeTool(captureHook))
 
 	// Create engine with the options
 	engine := adapter.New(opts...)
@@ -220,7 +194,7 @@ func TestNamespacePropagationEndToEnd(t *testing.T) {
 	}
 
 	// The actual namespace propagation happens when tools are executed
-	// through the engine's executeToolWithMiddleware method.
+	// through the engine's executeTool method.
 	// We've verified the engine was created successfully with transition tools.
 	// Full execution testing would require mocking the provider and streaming.
 }
@@ -287,29 +261,21 @@ func TestUnsafeAllToolsBypass(t *testing.T) {
 	}
 
 	handler := &mockHITLHandler{}
-	middleware := llm.NewHITLMiddleware(handler, requiresSupervision, true) // unsafeAllTools = true
+	hook := llm.NewHITLHook(handler, requiresSupervision, true) // unsafeAllTools = true
 
-	req := llm.ToolRequestPart{
-		ToolID: "test-id",
-		Name:   "switch_to_planning",
-		Args:   map[string]interface{}{"reason": "test"},
-	}
-
-	nextCalled := false
-	next := func(ctx context.Context) (interface{}, error) {
-		nextCalled = true
-		return "success", nil
+	req := llm.BeforeToolRequest{
+		ToolCall: llm.ToolRequestPart{
+			ToolID: "test-id",
+			Name:   "switch_to_planning",
+			Args:   map[string]interface{}{"reason": "test"},
+		},
 	}
 
 	ctx := context.WithValue(context.Background(), llm.ContextKeyNamespace, "transitions")
-	_, err := middleware(ctx, req, next)
+	err := hook(ctx, req)
 
 	if err != nil {
 		t.Fatalf("Expected no error with unsafeAllTools=true, got: %v", err)
-	}
-
-	if !nextCalled {
-		t.Fatal("Expected next function to be called when unsafeAllTools=true")
 	}
 
 	if handler.approveCount > 0 {

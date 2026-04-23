@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool"
 	"github.com/mark3labs/mcp-go/client"
 	mcp "github.com/mark3labs/mcp-go/mcp"
@@ -55,16 +54,12 @@ func TestMCPResolver_Initialization(t *testing.T) {
 		t.Fatalf("failed to create MCP resolver: %v", err)
 	}
 
-	msgs, err := reg.Inject(context.Background(), llm.InjectQuery{})
-	if err != nil {
-		t.Fatalf("failed to resolve tools: %v", err)
-	}
-	
-	if len(msgs) != 1 || len(msgs[0].Parts) != 1 {
-		t.Fatalf("expected 1 definition, got parts length %d", len(msgs[0].Parts))
+	tools := reg.Tools()
+	if len(tools) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(tools))
 	}
 
-	defPart := msgs[0].Parts[0].(llm.ToolDefinitionPart)
+	defPart := tools[0].Definition()
 	if defPart.Name != "calculator" {
 		t.Errorf("expected tool name 'calculator', got %q", defPart.Name)
 	}
