@@ -13,8 +13,12 @@ import (
 	"github.com/andrewhowdencom/dux/pkg/llm"
 	"github.com/andrewhowdencom/dux/pkg/llm/adapter"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/binary"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/librarian"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/static"
 	"github.com/andrewhowdencom/dux/pkg/llm/tool/transition"
+	"github.com/andrewhowdencom/dux/pkg/llm/tool/workspace"
+	semmem "github.com/andrewhowdencom/dux/pkg/memory/semantic"
+	"github.com/andrewhowdencom/dux/pkg/memory/semantic/sqlite"
 	"github.com/andrewhowdencom/dux/pkg/memory/working"
 )
 
@@ -234,7 +238,28 @@ func compileOptions(
 		}
 	}
 
-	res, err := NewResolversFromConfig(nativeToolNames, ResolverDependencies{GlobalMemory: globalMem})
+	// Create a shared semantic service when either semantic tools or librarian are enabled.
+	var semanticService *semmem.Service
+	needsSemantic := false
+	for _, n := range nativeToolNames {
+		if n == "librarian" || n == "semantic" || (len(n) >= 9 && n[:9] == "semantic_") {
+			needsSemantic = true
+			break
+		}
+	}
+	if needsSemantic {
+		dbPath := ":memory:"
+		store, err := sqlite.NewStore(dbPath)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
+		}
+		semanticService = semmem.NewService(store)
+	}
+
+	res, semanticService, err := NewResolversFromConfig(nativeToolNames, ResolverDependencies{
+		GlobalMemory:    globalMem,
+		SemanticService: semanticService,
+	})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to initialize native tools: %w", err)
 	}
@@ -290,6 +315,23 @@ func compileOptions(
 		adapter.WithEnrichers(enrichers),
 		adapter.WithBeforeTool(hitlHook),
 	}
+
+	// Wire Workspace AfterTool hook whenever plan tools are enabled.
+	for _, n := range nativeToolNames {
+		if n == "workspace_plans" || strings.HasPrefix(n, "plan_") {
+			opts = append(opts, adapter.WithAfterTool(workspace.NewAfterToolHook()))
+			break
+		}
+	}
+
+	// Wire Librarian AfterComplete hook whenever librarian is enabled.
+	for _, n := range nativeToolNames {
+		if n == "librarian" && semanticService != nil {
+			opts = append(opts, adapter.WithAfterComplete(librarian.NewAfterCompleteHook(semanticService)))
+			break
+		}
+	}
+
 	for _, r := range resolvers {
 		opts = append(opts, adapter.WithResolver(r))
 	}

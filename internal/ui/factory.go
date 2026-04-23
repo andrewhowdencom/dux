@@ -121,13 +121,16 @@ func NewEnrichersFromConfig(cfgs []config.Enricher) ([]llm.BeforeGenerateHook, e
 
 // ResolverDependencies holds runtime state required by built-in tool resolvers.
 type ResolverDependencies struct {
-	GlobalMemory llm.History
+	GlobalMemory    llm.History
+	SemanticService *semmem.Service // optional; reused or populated by NewResolversFromConfig
 }
 
 // NewResolversFromConfig builds an array of tool resolvers from string representations.
-func NewResolversFromConfig(cfgs []string, deps ResolverDependencies) ([]llm.ToolProvider, error) {
+// When semantic tools are requested, it creates (or reuses) a semantic service and returns it.
+func NewResolversFromConfig(cfgs []string, deps ResolverDependencies) ([]llm.ToolProvider, *semmem.Service, error) {
 	var results []llm.ToolProvider
 	var semanticIncluded bool
+	semanticService := deps.SemanticService
 
 	for _, c := range cfgs {
 		switch c {
@@ -152,29 +155,31 @@ func NewResolversFromConfig(cfgs []string, deps ResolverDependencies) ([]llm.Too
 			if deps.GlobalMemory != nil {
 				results = append(results, librarian.NewProvider(deps.GlobalMemory))
 			} else {
-				return nil, fmt.Errorf("librarian tool requested but no global memory provided")
+				return nil, nil, fmt.Errorf("librarian tool requested but no global memory provided")
 			}
 		default:
 			if c == "semantic" || (len(c) >= 9 && c[:9] == "semantic_") {
 				if !semanticIncluded {
-					dbPath := ":memory:"
-					store, err := sqlite.NewStore(dbPath)
-					if err != nil {
-						return nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
+					if semanticService == nil {
+						dbPath := ":memory:"
+						store, err := sqlite.NewStore(dbPath)
+						if err != nil {
+							return nil, nil, fmt.Errorf("failed to initialize semantic memory store: %w", err)
+						}
+						semanticService = semmem.NewService(store)
 					}
-					service := semmem.NewService(store)
-					results = append(results, semantic.NewProvider(service))
+					results = append(results, semantic.NewProvider(semanticService))
 					semanticIncluded = true
 				}
 			} else if c == "read_working_memory" {
 				// Typically satisfied by librarian, skip to avoid erroring if specified explicitly
 			} else {
-				return nil, fmt.Errorf("unknown tool bundle/name: %s", c)
+				return nil, nil, fmt.Errorf("unknown tool bundle/name: %s", c)
 			}
 		}
 	}
 
-	return results, nil
+	return results, semanticService, nil
 }
 
 // NewMCPResolversFromConfig builds an array of tool resolvers from an array of MCP tool configurations.
