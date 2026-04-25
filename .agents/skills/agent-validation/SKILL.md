@@ -18,4 +18,4 @@ When formulating an `implementation_plan.md` or making a significant architectur
 
 ## Enforcement
 - Ensure that the impact of your proposed designs on *all 5 agents* is documented.
-- If a capability is unlocked or improved that benefits these agents, you **MUST** update the respective tutorial document in `docs/tutorials/` within the same pull request/effort. Currently, the tutorials detail "Current Limitations/Known Gaps"; when these gaps are closed, the documentation must reflect the newfound capabilities.
+- If a capability is unlocked or improved that benefits these agents, you **MUST** update the respective example document in `docs/examples/` within the same pull request/effort. Currently, the examples detail "Current Limitations/Known Gaps"; when these gaps are closed, the documentation must reflect the newfound capabilities.

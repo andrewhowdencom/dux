@@ -35,13 +35,14 @@ nav:
     - "Getting Started": tutorials/getting-started.md
     - "OpenAI-Compatible Providers": tutorials/openai-compatible.md
     - "Declarative Tools": tutorials/declarative-tools.md
-    - "Customer Feedback Agent": tutorials/customer-feedback-agent.md
-    - "Customer Support Agent": tutorials/customer-support-agent.md
-    - "Migration Agent": tutorials/migration-agent.md
-    - "Guild Management Agent": tutorials/guild-management-agent.md
-    - "Product Marketing Agent": tutorials/product-marketing-agent.md
-    - "Coding Agent": tutorials/coder-agent.md
-    - "Helpful Assistant (Clippy)": tutorials/clippy-agent.md
+  - Examples:
+    - "Customer Feedback Agent": examples/customer-feedback-agent.md
+    - "Customer Support Agent": examples/customer-support-agent.md
+    - "Migration Agent": examples/migration-agent.md
+    - "Guild Management Agent": examples/guild-management-agent.md
+    - "Product Marketing Agent": examples/product-marketing-agent.md
+    - "Coding Agent": examples/coder-agent.md
+    - "Helpful Assistant (Clippy)": examples/clippy-agent.md
   - How-To Guides:
     - "Running Locally": how-to/running-locally.md
     - "Running in Container": how-to/running-in-container.md
