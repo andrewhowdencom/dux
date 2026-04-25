@@ -59,6 +59,10 @@ nav:
     - "Tools": reference/tools.md
   - Explanation:
     - "Application Architecture": explanation/architecture.md
+    - "Recursive Convergence Loop": explanation/convergence-loop.md
+    - "Mode Transitions & Workflow": explanation/mode-transitions.md
+    - "Lifecycle Hooks": explanation/lifecycle-hooks.md
+    - "Safety & Supervision": explanation/safety-and-supervision.md
     - "Declarative Execution": explanation/declarative-execution.md
 
 markdown_extensions:

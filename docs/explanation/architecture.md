@@ -1,16 +1,33 @@
 # Architecture Principles
 
-The `dux` execution engine is structured to prioritize recursive parsing natively via the `adapter` layer. This decoupling separates the CLI/Server handling routes from the raw provider integrations.
+Dux is structured around a clean separation between its **library surface** (`pkg/`) and its **application mapping layer** (`internal/`). This boundary ensures that the core agentic primitives remain free of configuration-framework leaks (YAML tags, Viper maps, CLI concerns) and can be embedded directly into other Go programs.
 
-Every provider logic implementation inherits a strict `Provider` interface abstraction, forcing compliance to normalized stream mappings. Because large language models constantly output data streams over WebSockets via chunked encoding layers, this simplifies the interface down to raw generator streams.
+## Core Primitives
 
-### Provider Factory
-To avoid leaking provider semantics to consumers (e.g. your application), the CLI layer (`internal/ui/factory.go`) deserializes Viper generic data objects parsed dynamically (`map[string]any`) from `config.yaml` and constructs the concrete provider. Library consumers bypass this entirely by calling provider constructors directly (e.g. `ollama.New(...)`, `static.New(...)`).
+The engine is built on three foundational agentic primitives, each documented in dedicated explanation pages:
 
-### Adapter Layers
-Unlike standard raw strings mapped straight to `.Stdout`, `pkg/llm/adapter` allows users to nest execution engines recursively. This creates standard abstractions useful for testing tools:
-1.  **Static Adapter Mocks**: Useful for injecting pre-compiled response buffers directly into the agent network to simulate standard behaviors linearly.
-2.  **Tool Mappings**: Tools execute arbitrary backend functions by exporting generic interfaces serialized automatically to strict JSON Schemas mapped natively to provider-level function calling parameters.
+1. **[The Recursive Convergence Loop](convergence-loop.md)** — The core execution cycle that transforms a simple LLM chat into an autonomous agent by repeatedly streaming generation, detecting tool requests, executing them, and feeding results back until the model converges on a final answer.
 
-### Synchronous State Loops
-Because execution loops rely strictly on predictable recursive rendering of tool executions and subsequent follow-ups to LLMs, the system leverages sync mapping loops natively blocking execution contexts until full stream conclusion. This produces a perfectly predictable, race-condition-free runtime environment.
+2. **[Mode Transitions & Workflow Orchestration](mode-transitions.md)** — A state-machine layer that allows a single agent to host multiple personas (orchestrator, planner, executor, reviewer) and transition between them without dropping the session or UI connection.
+
+3. **[The Lifecycle Hook Framework](lifecycle-hooks.md)** — A five-phase interception pipeline (BeforeStart, BeforeGenerate, BeforeTool, AfterTool, AfterComplete) that decouples cross-cutting concerns such as memory injection, guardrails, telemetry, and human supervision from the core engine logic.
+
+A fourth cross-cutting primitive, **[Safety & Supervision](safety-and-supervision.md)**, layers human-in-the-loop approval and policy-based gating on top of the execution loop.
+
+## Provider Abstraction
+
+Every LLM backend (OpenAI, Gemini, Ollama, Static mocks) implements a uniform `Provider` interface that emits strongly-typed `Part` values—`TextPart`, `ReasoningPart`, `ToolRequestPart`, `TelemetryPart`—rather than raw byte streams. This eliminates brittle string-parsing and allows downstream adapters (terminal, web, Slack) to branch their rendering logic based on semantic intent rather than heuristics.
+
+The CLI layer (`internal/`) deserializes YAML configurations into concrete provider constructors via Viper, but library consumers bypass this entirely by calling provider packages directly (`ollama.New(...)`, `gemini.New(...)`, `static.New(...)`).
+
+## Synchronous Turn Blocking
+
+Each iteration of the convergence loop blocks until the LLM stream has fully concluded and all pending tool executions have resolved. This produces a race-condition-free runtime where tool side-effects and history mutations are strictly ordered, at the cost of some throughput. The design prioritizes **predictability over parallelism** because agentic tool chains are inherently sequential: the LLM cannot reason about the result of `file_read` until `file_read` has actually executed.
+
+## Adapter Engine
+
+The `pkg/llm/adapter` package hosts the recursive convergence engine. It can be wrapped by higher-order engines—such as the `WorkflowEngine`—which intercept transition signals and hermetically hot-swap the inner engine's configuration (provider, system prompt, tools) while preserving the shared session history. This nesting is what makes multi-mode agents possible without external orchestrators.
+
+---
+
+For deeper understanding of each primitive, follow the linked explanation pages above.
