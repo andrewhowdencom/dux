@@ -1,38 +1,18 @@
-name: Validate
+# This workflow is disabled — the project is archived.
+# While this design was interesting, the author (Andy) is going to
+# have another go at this that's much slimmer.
+
+name: Validate (archived)
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup environment
-        run: task setup
-
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
-      - name: Generate code
-        run: task generate
-
-      - name: Run validate
-        run: task validate
+      - name: Archived
+        run: |
+          echo "This project is archived."
+          echo "While this design was interesting, the author (Andy) is going to"
+          echo "have another go at this that's much slimmer."

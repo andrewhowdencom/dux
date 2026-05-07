@@ -1,3 +1,5 @@
+> **Note:** This project is archived. While this design was interesting, the author (Andy) is going to have another go at this that's much slimmer. This document remains as a historical artifact of the original design thinking.
+
 # Exhaustive Analysis: Elevating `pkg/llm` to a Versatile Standalone Library
 
 This document contains a comprehensive analysis of the `pkg/llm` and `pkg/llm/provider` packages. It outlines their current architectural state and details the critical concepts and components required to transform these packages into a robust, standalone library capable of powering advanced AI applications (including memory management, tool orchestration, and RAG).

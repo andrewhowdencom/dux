@@ -1,84 +1,12 @@
-site_name: Dux Documentation
-site_description: Fast harness for agents. Latin for "guide".
-site_url: "https://dux.lahb.work"
-
+site_name: dux (archived)
+site_description: This project is archived.
 repo_url: https://github.com/andrewhowdencom/dux
 repo_name: andrewhowdencom/dux
 
 theme:
   name: material
-  icon:
-    logo: material/bird
-  palette:
-    # Palette toggle for light mode
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: amber
-      accent: orange
-      toggle:
-        icon: material/weather-sunny
-        name: Switch to dark mode
-    # Palette toggle for dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: amber
-      accent: deep orange
-      toggle:
-        icon: material/weather-night
-        name: Switch to light mode
 
 docs_dir: docs
 
 nav:
   - Home: index.md
-  - Tutorials:
-    - "Getting Started": tutorials/getting-started.md
-    - "OpenAI-Compatible Providers": tutorials/openai-compatible.md
-    - "Declarative Tools": tutorials/declarative-tools.md
-  - Examples:
-    - "Customer Feedback Agent": examples/customer-feedback-agent.md
-    - "Customer Support Agent": examples/customer-support-agent.md
-    - "Migration Agent": examples/migration-agent.md
-    - "Guild Management Agent": examples/guild-management-agent.md
-    - "Product Marketing Agent": examples/product-marketing-agent.md
-    - "Coding Agent": examples/coder-agent.md
-    - "Helpful Assistant (Clippy)": examples/clippy-agent.md
-  - How-To Guides:
-    - "Running Locally": how-to/running-locally.md
-    - "Running in Container": how-to/running-in-container.md
-    - "Configuring Agents": how-to/configuring-agents.md
-    - "Configuring Gemini": how-to/configuring-gemini.md
-    - "Configuring MCP Servers": how-to/configuring-mcp.md
-    - "Configuring Tools": how-to/configuring-tools.md
-    - "Configuring Slack UI": how-to/slack-ui.md
-    - "Custom Tools": how-to/custom-tools.md
-    - "Group Tools": how-to/group-tools.md
-    - "Using as Go Library": how-to/using-as-library.md
-  - Reference:
-    - "CLI Commands": reference/cli.md
-    - "LLM Providers": reference/llm-providers.md
-    - "Tools": reference/tools.md
-  - Explanation:
-    - "Application Architecture": explanation/architecture.md
-    - "Recursive Convergence Loop": explanation/convergence-loop.md
-    - "Mode Transitions & Workflow": explanation/mode-transitions.md
-    - "Lifecycle Hooks": explanation/lifecycle-hooks.md
-    - "Safety & Supervision": explanation/safety-and-supervision.md
-    - "Declarative Execution": explanation/declarative-execution.md
-
-markdown_extensions:
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - admonition
-  - pymdownx.details
-  - toc:
-      permalink: true

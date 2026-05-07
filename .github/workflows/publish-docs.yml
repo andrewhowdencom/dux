@@ -1,13 +1,11 @@
-name: Publish Docs
+# This workflow is disabled — the project is archived.
+# While this design was interesting, the author (Andy) is going to
+# have another go at this that's much slimmer.
+
+name: Publish Docs (archived)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '.github/workflows/publish-docs.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,17 +14,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install dependencies
+      - name: Archived
         run: |
-          pip install mkdocs mkdocs-material
-
-      - name: Deploy to GitHub Pages
-        run: mkdocs gh-deploy --force
+          echo "This project is archived."
+          echo "While this design was interesting, the author (Andy) is going to"
+          echo "have another go at this that's much slimmer."

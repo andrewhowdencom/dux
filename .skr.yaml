@@ -1,13 +1,3 @@
-agents:
-    - antigravity
-skills:
-    - file://../skills/skills/git
-    - file://../skills/skills/cli
-    - file://../skills/skills/documentation
-    - file://../skills/skills/instrumentation
-    - file://../skills/skills/configuration
-    - file://../skills/skills/go
-    - file://../skills/skills/taskfile
-    - file://../skills/skills/architecture
-    - file://../skills/skills/rpc
-    - file://../skills/skills/dependency_injection
+# This project is archived.
+# While this design was interesting, the author (Andy) is going to
+# have another go at this that's much slimmer.
